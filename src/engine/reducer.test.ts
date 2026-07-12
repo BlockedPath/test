@@ -121,12 +121,47 @@ describe("session reducer lifecycle", () => {
       ),
     );
 
-    // completed_turn is transient; snapshot settles at idle with stop reason retained
+    // completed_turn is transient in the state machine; the pure reducer
+    // settles at idle with the stop reason retained (completed transition).
     expect(snap.state).toBe("idle");
     expect(snap.turn?.stopReason).toBe("end_turn");
     expect(snap.messages.find((m) => m.role === "assistant")?.streaming).toBe(
       false,
     );
+  });
+
+  it("covers completed transition: running → idle with end_turn stop reason", () => {
+    let snap = reduce(
+      createEmptySnapshot({ sessionId: "sess-1", projectPath: "/proj" }),
+      evt("session.created", { sessionId: "sess-1", cwd: "/proj" }),
+    );
+    snap = reduce(
+      snap,
+      evt(
+        "turn.started",
+        {
+          turnId: "turn-c",
+          prompt: [{ type: "text", text: "done soon" }],
+        },
+        { turnId: "turn-c" },
+      ),
+    );
+    expect(snap.state).toBe("running");
+
+    snap = reduce(
+      snap,
+      evt(
+        "turn.completed",
+        { turnId: "turn-c", stopReason: "end_turn" },
+        { turnId: "turn-c" },
+      ),
+    );
+
+    expect(snap.state).toBe("idle");
+    expect(snap.turn).toMatchObject({
+      turnId: "turn-c",
+      stopReason: "end_turn",
+    });
   });
 
   it("faults the session on engine.error", () => {

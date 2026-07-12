@@ -169,6 +169,8 @@ export function reduce(
 
     case "turn.completed": {
       const isCurrent = snapshot.turn?.turnId === event.payload.turnId;
+      // completed_turn is transient in the state machine; the pure reducer
+      // settles at idle with the stop reason retained (see event contract).
       return {
         ...snapshot,
         state: "idle",

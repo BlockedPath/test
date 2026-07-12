@@ -87,4 +87,16 @@ describe("FakeAgentEngine (AgentEnginePort seam)", () => {
     // No throw = success for empty resolve; snapshot remains valid
     expect(engine.getSnapshot()?.state).toBe("idle");
   });
+
+  it("preserves engine version across createSession after start", async () => {
+    const engine = new FakeAgentEngine({ streamDelayMs: 0 });
+    await engine.start({ projectPath: "/tmp/demo" });
+    expect(engine.getSnapshot()?.engineVersion).toBe("fake-0.1.0");
+    expect(engine.getSnapshot()?.protocolVersion).toBe(1);
+
+    await engine.createSession();
+    expect(engine.getSnapshot()?.engineVersion).toBe("fake-0.1.0");
+    expect(engine.getSnapshot()?.protocolVersion).toBe(1);
+    expect(engine.getSnapshot()?.state).toBe("idle");
+  });
 });

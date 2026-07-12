@@ -159,10 +159,8 @@ export class FakeAgentEngine implements AgentEnginePort {
     }
     this.sessionId = `sess-fake-${Date.now()}`;
     const cwd = options?.cwd ?? this.projectPath;
-    this.snapshot = createEmptySnapshot({
-      sessionId: this.sessionId,
-      projectPath: cwd,
-    });
+    // Reset conversation state but keep engine identity from start().
+    this.snapshot = this.resetSnapshot(this.sessionId, cwd);
     this.emit({
       type: "session.created",
       sessionId: this.sessionId,
@@ -174,15 +172,22 @@ export class FakeAgentEngine implements AgentEnginePort {
   async resumeSession(sessionId: string): Promise<void> {
     this.assertStarted();
     this.sessionId = sessionId;
-    this.snapshot = createEmptySnapshot({
-      sessionId,
-      projectPath: this.projectPath,
-    });
+    this.snapshot = this.resetSnapshot(sessionId, this.projectPath);
     this.emit({
       type: "session.resumed",
       sessionId,
       payload: { sessionId, cwd: this.projectPath, replayed: false },
     });
+  }
+
+  /** Fresh session projection, preserving engine/protocol version from start. */
+  private resetSnapshot(sessionId: string, projectPath: string): SessionSnapshot {
+    const prev = this.snapshot;
+    return {
+      ...createEmptySnapshot({ sessionId, projectPath }),
+      engineVersion: prev?.engineVersion,
+      protocolVersion: prev?.protocolVersion,
+    };
   }
 
   async sendPrompt(content: ContentBlock[] | string): Promise<void> {
