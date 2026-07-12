@@ -26,4 +26,11 @@ export {
   ACQUISITION_HELP,
   ENGINE_STDIO_ARGS,
 } from "./constants";
+export {
+  TerminalBridge,
+  createNodeTerminalSpawner,
+  type SpawnTerminalProcess,
+  type TerminalCreateRequest,
+  type TerminalBridgeHooks,
+} from "./terminal-bridge";
 export type * from "./types";

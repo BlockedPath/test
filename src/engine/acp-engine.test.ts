@@ -306,4 +306,253 @@ describe("GrokAcpEngine bridge contracts", () => {
       expect(t).not.toMatch(/session\/|jsonrpc|initialize/i);
     }
   });
+
+  it("answers terminal/* client methods with live output, exit codes, and cleanup", async () => {
+    const agent = new FakeAcpAgentProcess({ sessionId: "sess-term-1" });
+    let killed = 0;
+    const engine = new GrokAcpEngine({
+      discovery: testDiscovery(),
+      identity: testIdentity(),
+      enginePath: "C:\\fake\\grok.exe",
+      spawn: () => agent,
+      requestTimeoutMs: 5_000,
+      spawnTerminal: ({ command, args }) => {
+        let exitHandler:
+          | ((s: { exitCode: number | null; signal: string | null }) => void)
+          | null = null;
+        let stdout: ((c: string) => void) | null = null;
+        return {
+          pid: 1,
+          kill() {
+            killed += 1;
+            queueMicrotask(() =>
+              exitHandler?.({ exitCode: null, signal: "SIGTERM" }),
+            );
+          },
+          onStdout(h) {
+            stdout = h;
+          },
+          onStderr() {},
+          onExit(h) {
+            exitHandler = h;
+            queueMicrotask(() => {
+              stdout?.(`ran ${command} ${(args ?? []).join(" ")}\n`);
+              exitHandler?.({ exitCode: 0, signal: null });
+            });
+          },
+        };
+      },
+    });
+    const events: GuiEvent[] = [];
+    engine.subscribe((e) => events.push(e));
+
+    await engine.start({ projectPath: "C:\\proj" });
+    await engine.authenticate();
+    await engine.createSession({ cwd: "C:\\proj" });
+
+    agent.requestFromAgent("terminal/create", {
+      sessionId: "sess-term-1",
+      command: "echo",
+      args: ["SPIKE_TERM_OK"],
+      cwd: "C:\\proj",
+    });
+
+    await new Promise((r) => setTimeout(r, 40));
+
+    const started = events.find((e) => e.type === "command.started");
+    expect(started?.type).toBe("command.started");
+    if (started?.type === "command.started") {
+      expect(started.payload.command).toBe("echo");
+      expect(started.payload.cwd).toBe("C:\\proj");
+    }
+
+    const terminalId =
+      started?.type === "command.started"
+        ? started.payload.terminalId
+        : "";
+    expect(terminalId).toMatch(/^term-/);
+
+    await new Promise((r) => setTimeout(r, 40));
+    const exited = events.find((e) => e.type === "command.exited");
+    expect(exited?.type).toBe("command.exited");
+    if (exited?.type === "command.exited") {
+      expect(exited.payload.exitCode).toBe(0);
+    }
+
+    const snap = engine.getSnapshot();
+    expect(snap?.terminals[terminalId]?.output).toMatch(/SPIKE_TERM_OK|ran echo/);
+    expect(snap?.terminals[terminalId]?.status).toBe("exited");
+
+    agent.requestFromAgent("terminal/release", {
+      sessionId: "sess-term-1",
+      terminalId,
+    });
+    await new Promise((r) => setTimeout(r, 20));
+    expect(engine.getSnapshot()?.terminals[terminalId]?.status).toBe("released");
+    // Output remains after release for Activity panel audit
+    expect(engine.getSnapshot()?.terminals[terminalId]?.output.length).toBeGreaterThan(
+      0,
+    );
+
+    await engine.dispose();
+    void killed;
+  });
+
+  it("reports nonzero terminal exit without faulting the session", async () => {
+    const agent = new FakeAcpAgentProcess({ sessionId: "sess-term-fail" });
+    const engine = new GrokAcpEngine({
+      discovery: testDiscovery(),
+      identity: testIdentity(),
+      enginePath: "C:\\fake\\grok.exe",
+      spawn: () => agent,
+      requestTimeoutMs: 5_000,
+      spawnTerminal: () => ({
+        pid: 2,
+        kill() {},
+        onStdout(h) {
+          queueMicrotask(() => h("fail\n"));
+        },
+        onStderr() {},
+        onExit(h) {
+          queueMicrotask(() => h({ exitCode: 1, signal: null }));
+        },
+      }),
+    });
+    const events: GuiEvent[] = [];
+    engine.subscribe((e) => events.push(e));
+
+    await engine.start({ projectPath: "C:\\proj" });
+    await engine.authenticate();
+    await engine.createSession();
+
+    agent.requestFromAgent("terminal/create", {
+      sessionId: "sess-term-fail",
+      command: "false",
+    });
+    await new Promise((r) => setTimeout(r, 40));
+
+    const exited = events.find((e) => e.type === "command.exited");
+    expect(exited?.type).toBe("command.exited");
+    if (exited?.type === "command.exited") {
+      expect(exited.payload.exitCode).toBe(1);
+    }
+    expect(engine.getSnapshot()?.state).not.toBe("faulted");
+    await engine.dispose();
+  });
+
+  it("rejects malformed terminal events without crashing", async () => {
+    const agent = new FakeAcpAgentProcess({ sessionId: "sess-term-bad" });
+    const engine = createEngine(agent);
+    await engine.start({ projectPath: "C:\\proj" });
+    await engine.authenticate();
+    await engine.createSession();
+
+    // Missing command — agent gets RPC error; bridge stays usable
+    agent.requestFromAgent("terminal/create", {
+      sessionId: "sess-term-bad",
+    });
+    agent.requestFromAgent("terminal/output", {
+      sessionId: "sess-term-bad",
+      terminalId: "does-not-exist",
+    });
+    await new Promise((r) => setTimeout(r, 40));
+
+    expect(engine.getSnapshot()?.state).toBe("idle");
+    await engine.sendPrompt("still works");
+    expect(engine.getSnapshot()?.messages.length).toBeGreaterThan(0);
+    await engine.dispose();
+  });
+
+  it("waits for user approval on permission requests and preserves conversation", async () => {
+    const agent = new FakeAcpAgentProcess({ sessionId: "sess-perm-1" });
+    const engine = createEngine(agent);
+    const events: GuiEvent[] = [];
+    engine.subscribe((e) => events.push(e));
+
+    await engine.start({ projectPath: "C:\\proj" });
+    await engine.authenticate();
+    await engine.createSession();
+
+    // Open a turn so conversation state exists
+    const promptPromise = engine.sendPrompt("please run a command");
+    await new Promise((r) => setTimeout(r, 10));
+
+    agent.requestFromAgent("session/request_permission", {
+      sessionId: "sess-perm-1",
+      toolCall: {
+        toolCallId: "call-exec-1",
+        title: "Execute echo hello",
+        kind: "execute",
+      },
+      options: [
+        { optionId: "allow-once", name: "Allow once", kind: "allow_once" },
+        { optionId: "reject-once", name: "Reject", kind: "reject_once" },
+      ],
+    });
+
+    await new Promise((r) => setTimeout(r, 20));
+    expect(engine.getSnapshot()?.state).toBe("awaiting_approval");
+    expect(engine.getSnapshot()?.pendingApprovals).toHaveLength(1);
+    // Conversation still has the user message
+    expect(
+      engine.getSnapshot()?.messages.some((m) => m.role === "user"),
+    ).toBe(true);
+
+    const requestId = engine.getSnapshot()!.pendingApprovals[0]!.requestId;
+    await engine.respondToApproval(requestId, {
+      outcome: "selected",
+      optionId: "allow-once",
+    });
+
+    expect(engine.getSnapshot()?.pendingApprovals).toHaveLength(0);
+    expect(engine.getSnapshot()?.state).toBe("running");
+    await promptPromise;
+    await engine.dispose();
+  });
+
+  it("kills running terminals on cancel and dispose", async () => {
+    const agent = new FakeAcpAgentProcess({ sessionId: "sess-term-cancel" });
+    let killCount = 0;
+    const engine = new GrokAcpEngine({
+      discovery: testDiscovery(),
+      identity: testIdentity(),
+      enginePath: "C:\\fake\\grok.exe",
+      spawn: () => agent,
+      requestTimeoutMs: 5_000,
+      spawnTerminal: () => ({
+        pid: 3,
+        kill() {
+          killCount += 1;
+        },
+        onStdout() {},
+        onStderr() {},
+        onExit() {
+          /* hang until kill */
+        },
+      }),
+    });
+
+    await engine.start({ projectPath: "C:\\proj" });
+    await engine.authenticate();
+    await engine.createSession();
+
+    // Start prompt so cancel is meaningful
+    const promptP = engine.sendPrompt("long running");
+    await new Promise((r) => setTimeout(r, 10));
+
+    agent.requestFromAgent("terminal/create", {
+      sessionId: "sess-term-cancel",
+      command: "sleep",
+      args: ["99"],
+    });
+    await new Promise((r) => setTimeout(r, 20));
+    expect(engine.getTerminalBridge()?.activeCount).toBe(1);
+
+    await engine.cancel();
+    expect(killCount).toBeGreaterThanOrEqual(1);
+
+    await promptP.catch(() => undefined);
+    await engine.dispose();
+    expect(engine.getTerminalBridge()).toBeNull();
+  });
 });

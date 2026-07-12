@@ -222,4 +222,120 @@ describe("ConversationApp (workspace UI × FakeAgentEngine)", () => {
       true,
     );
   });
+
+  it("prompts for project-local commands and shows Activity panel output after approve", async () => {
+    const engine = new FakeAgentEngine({
+      streamDelayMs: 0,
+      richTurn: false,
+      commandTurn: true,
+    });
+    await mount(engine);
+
+    const input = root.querySelector(
+      '[data-testid="prompt-input"]',
+    ) as HTMLTextAreaElement;
+    const send = root.querySelector('[data-testid="send"]') as HTMLButtonElement;
+    input.value = "run echo please";
+    send.click();
+    await flush(30);
+
+    // Approval required before execution
+    const approval = root.querySelector('[data-testid="approval-panel"]');
+    expect(approval).toBeTruthy();
+    expect(approval!.classList.contains("hidden")).toBe(false);
+    expect(textOf(approval)).toMatch(/command|echo|SPIKE/i);
+
+    // Conversation still shows the user prompt (state preserved)
+    expect(textOf(root.querySelector('[data-testid="messages"]'))).toMatch(
+      /run echo please/,
+    );
+
+    const allow = root.querySelector(
+      '[data-testid="approval-allow"]',
+    ) as HTMLButtonElement;
+    expect(allow).toBeTruthy();
+    allow.click();
+    await flush(40);
+
+    const activity = root.querySelector('[data-testid="activity-panel"]');
+    expect(activity).toBeTruthy();
+    expect(activity!.classList.contains("hidden")).toBe(false);
+    expect(textOf(root.querySelector('[data-testid="activity-command"]'))).toMatch(
+      /echo|SPIKE_TERM_OK/i,
+    );
+    expect(textOf(root.querySelector('[data-testid="activity-output"]'))).toMatch(
+      /SPIKE_TERM_OK/,
+    );
+    expect(textOf(root.querySelector('[data-testid="activity-exit"]'))).toMatch(
+      /0/,
+    );
+
+    // Output remains after turn completes
+    await flush(40);
+    expect(textOf(root.querySelector('[data-testid="activity-output"]'))).toMatch(
+      /SPIKE_TERM_OK/,
+    );
+    expect(engine.getSnapshot()?.state).toBe("idle");
+  });
+
+  it("allows denying a command without losing conversation state", async () => {
+    const engine = new FakeAgentEngine({
+      streamDelayMs: 0,
+      richTurn: false,
+      commandTurn: true,
+    });
+    await mount(engine);
+
+    const input = root.querySelector(
+      '[data-testid="prompt-input"]',
+    ) as HTMLTextAreaElement;
+    const send = root.querySelector('[data-testid="send"]') as HTMLButtonElement;
+    input.value = "maybe run something dangerous";
+    send.click();
+    await flush(30);
+
+    const deny = root.querySelector(
+      '[data-testid="approval-deny"]',
+    ) as HTMLButtonElement;
+    deny.click();
+    await flush(50);
+
+    expect(textOf(root.querySelector('[data-testid="messages"]'))).toMatch(
+      /maybe run something dangerous/,
+    );
+    // No command output after deny
+    const activity = root.querySelector('[data-testid="activity-panel"]');
+    expect(
+      !activity || activity.classList.contains("hidden"),
+    ).toBe(true);
+  });
+
+  it("shows nonzero command failures in the Activity panel", async () => {
+    const engine = new FakeAgentEngine({
+      streamDelayMs: 0,
+      richTurn: false,
+      commandTurn: true,
+      commandFail: true,
+    });
+    await mount(engine);
+
+    const input = root.querySelector(
+      '[data-testid="prompt-input"]',
+    ) as HTMLTextAreaElement;
+    const send = root.querySelector('[data-testid="send"]') as HTMLButtonElement;
+    input.value = "run failing command";
+    send.click();
+    await flush(20);
+    (root.querySelector('[data-testid="approval-allow"]') as HTMLButtonElement).click();
+    await flush(40);
+
+    const cmd = root.querySelector('[data-testid="activity-command"]');
+    expect(cmd?.classList.contains("failed")).toBe(true);
+    expect(textOf(root.querySelector('[data-testid="activity-exit"]'))).toMatch(
+      /1/,
+    );
+    expect(textOf(root.querySelector('[data-testid="activity-output"]'))).toMatch(
+      /fail/i,
+    );
+  });
 });
