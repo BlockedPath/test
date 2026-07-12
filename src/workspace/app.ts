@@ -7,12 +7,14 @@ import type { FileWriteHost } from "../edits";
 import { formatChangeDiff, setChangeSelected } from "../edits";
 import type { AgentEnginePort } from "../engine/port";
 import type {
+  ApprovalOutcome,
   FileChangeBatch,
   FileChangeRecord,
   Message,
   PlanEntry,
   SessionSnapshot,
   StopReason,
+  TerminalRecord,
   ToolCallRecord,
 } from "../engine/types";
 import {
@@ -91,6 +93,8 @@ export class ConversationApp {
   private thoughtPanelEl!: HTMLElement;
   private planPanelEl!: HTMLElement;
   private toolPanelEl!: HTMLElement;
+  private activityPanelEl!: HTMLElement;
+  private approvalPanelEl!: HTMLElement;
   private usagePanelEl!: HTMLElement;
   private errorRecoveryEl!: HTMLElement;
   private errorDetailEl!: HTMLElement;
@@ -177,6 +181,23 @@ export class ConversationApp {
           </div>
         </section>
 
+        <section
+          id="approval-panel"
+          class="approval-panel hidden"
+          data-testid="approval-panel"
+          aria-label="Pending approvals"
+        ></section>
+
+        <section
+          id="activity-panel"
+          class="activity-panel hidden"
+          data-testid="activity-panel"
+          aria-label="Activity panel"
+        >
+          <header class="activity-panel-title">Activity</header>
+          <div class="activity-body" data-testid="activity-body"></div>
+        </section>
+
         <div id="turn-status" class="turn-status" data-testid="turn-status" aria-live="polite"></div>
 
         <section id="messages" class="messages" aria-live="polite" data-testid="messages"></section>
@@ -212,6 +233,8 @@ export class ConversationApp {
     this.thoughtPanelEl = this.must("#thought-panel");
     this.planPanelEl = this.must("#plan-panel");
     this.toolPanelEl = this.must("#tool-panel");
+    this.activityPanelEl = this.must("#activity-panel");
+    this.approvalPanelEl = this.must("#approval-panel");
     this.usagePanelEl = this.must("#usage-panel");
     this.errorRecoveryEl = this.must("#error-recovery");
     this.errorDetailEl = this.must("#error-detail");
@@ -239,6 +262,28 @@ export class ConversationApp {
     this.fileChangesEl.addEventListener("change", (e) =>
       void this.onFileChangesChange(e),
     );
+    this.approvalPanelEl.addEventListener("click", (e) => {
+      const target = e.target as HTMLElement | null;
+      const btn = target?.closest("[data-approval-action]") as HTMLElement | null;
+      if (!btn) return;
+      const requestId = btn.dataset.requestId;
+      const optionId = btn.dataset.optionId;
+      const action = btn.dataset.approvalAction;
+      if (!requestId) return;
+      if (action === "reject") {
+        void this.onApproval(requestId, {
+          outcome: "selected",
+          optionId: optionId ?? "reject-once",
+        });
+        return;
+      }
+      if (action === "allow" && optionId) {
+        void this.onApproval(requestId, {
+          outcome: "selected",
+          optionId,
+        });
+      }
+    });
     this.inputEl.addEventListener("keydown", (e) => {
       if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
@@ -287,6 +332,8 @@ export class ConversationApp {
     this.renderPlan(snap.plan);
     this.renderThoughts(snap.messages);
     this.renderTools(snap.tools);
+    this.renderApprovals(snap);
+    this.renderActivity(snap);
     this.renderUsage(snap);
     this.renderMessages(snap.messages);
     this.renderFileChanges(snap.fileChangeBatches ?? []);
@@ -381,6 +428,87 @@ export class ConversationApp {
         return `<li data-status="${escapeHtml(t.status)}" data-kind="${escapeHtml(t.kind)}"><span class="tool-kind">${escapeHtml(t.kind)}</span> ${escapeHtml(t.title)} <span class="tool-status">${escapeHtml(t.status)}</span>${locBit}</li>`;
       })
       .join("");
+  }
+
+  private renderApprovals(snap: SessionSnapshot): void {
+    const pending = snap.pendingApprovals;
+    if (!pending.length) {
+      this.approvalPanelEl.classList.add("hidden");
+      this.approvalPanelEl.innerHTML = "";
+      return;
+    }
+    this.approvalPanelEl.classList.remove("hidden");
+    this.approvalPanelEl.innerHTML = pending
+      .map((a) => {
+        const allow = a.options.find((o) => o.kind === "allow_once" || o.kind === "allow_always");
+        const reject = a.options.find((o) => o.kind === "reject_once" || o.kind === "reject_always");
+        const title = a.title ?? `Approve tool ${a.toolCallId}`;
+        const kind = a.kind ? ` · ${a.kind}` : "";
+        return `
+          <article class="approval-card" data-testid="approval-card" data-request-id="${escapeHtml(a.requestId)}">
+            <header class="approval-title">Approval required${escapeHtml(kind)}</header>
+            <p class="approval-detail">${escapeHtml(title)}</p>
+            <div class="approval-actions">
+              ${
+                allow
+                  ? `<button type="button" class="btn primary" data-approval-action="allow" data-request-id="${escapeHtml(a.requestId)}" data-option-id="${escapeHtml(allow.optionId)}" data-testid="approval-allow">Allow</button>`
+                  : ""
+              }
+              ${
+                reject
+                  ? `<button type="button" class="btn secondary" data-approval-action="reject" data-request-id="${escapeHtml(a.requestId)}" data-option-id="${escapeHtml(reject.optionId)}" data-testid="approval-deny">Deny</button>`
+                  : ""
+              }
+            </div>
+          </article>
+        `;
+      })
+      .join("");
+  }
+
+  private renderActivity(snap: SessionSnapshot): void {
+    const body = this.activityPanelEl.querySelector(".activity-body");
+    if (!body) return;
+    const terminals = Object.values(snap.terminals);
+    if (terminals.length === 0) {
+      this.activityPanelEl.classList.add("hidden");
+      body.innerHTML = "";
+      return;
+    }
+    this.activityPanelEl.classList.remove("hidden");
+    body.innerHTML = terminals.map((t) => this.renderTerminalRow(t)).join("");
+  }
+
+  private renderTerminalRow(t: TerminalRecord): string {
+    const args = t.args?.length ? ` ${t.args.map(escapeHtml).join(" ")}` : "";
+    const cwd = t.cwd ? escapeHtml(t.cwd) : "—";
+    const exit =
+      t.exitCode !== undefined && t.exitCode !== null
+        ? String(t.exitCode)
+        : t.signal
+          ? `signal ${escapeHtml(t.signal)}`
+          : t.status === "running"
+            ? "running"
+            : "—";
+    const failed =
+      (typeof t.exitCode === "number" && t.exitCode !== 0) ||
+      t.status === "killed";
+    return `
+      <article
+        class="activity-command${failed ? " failed" : ""}"
+        data-testid="activity-command"
+        data-terminal-id="${escapeHtml(t.terminalId)}"
+        data-status="${escapeHtml(t.status)}"
+      >
+        <header class="activity-command-meta">
+          <span class="activity-label">command</span>
+          <code class="activity-cmd">${escapeHtml(t.command)}${args}</code>
+        </header>
+        <div class="activity-command-scope"><span class="activity-label">cwd</span> ${cwd}</div>
+        <div class="activity-command-exit"><span class="activity-label">exit</span> <span data-testid="activity-exit">${escapeHtml(exit)}</span> · ${escapeHtml(t.status)}</div>
+        <pre class="activity-command-output" data-testid="activity-output">${escapeHtml(t.output || "(no output yet)")}</pre>
+      </article>
+    `;
   }
 
   private renderUsage(snap: SessionSnapshot): void {
@@ -653,6 +781,19 @@ export class ConversationApp {
     );
     this.emergencyBtn.disabled = snap.state === "disposed";
     this.yoloBtn.disabled = blocked;
+  }
+
+  private async onApproval(
+    requestId: string,
+    decision: ApprovalOutcome,
+  ): Promise<void> {
+    try {
+      await this.engine.respondToApproval(requestId, decision);
+    } catch (err) {
+      this.errorRecoveryEl.classList.remove("hidden");
+      this.errorDetailEl.textContent =
+        err instanceof Error ? err.message : String(err);
+    }
   }
 
   private async onSend(): Promise<void> {

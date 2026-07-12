@@ -12,6 +12,10 @@ import { promisify } from "node:util";
 import type { DiscoveryHost } from "./discovery";
 import type { IdentityHost, SignatureIdentity } from "./identity";
 import type { EngineProcessHandle, SpawnEngine } from "./acp/transport";
+import type {
+  SpawnTerminalProcess,
+  TerminalProcessHandle,
+} from "./terminal-bridge";
 import { EXPECTED_PUBLISHER } from "./constants";
 import { windowsAuthenticodeScript } from "./identity";
 import { redactSecrets } from "./redact";
@@ -118,6 +122,60 @@ async function readWindowsAuthenticode(
       ),
     };
   }
+}
+
+/**
+ * Node process spawner for ACP terminal/* commands.
+ * Kept out of the browser bundle (import only from Node/Tauri hosts).
+ */
+export function createNodeTerminalSpawner(): SpawnTerminalProcess {
+  return ({ command, args, cwd, env, shell }) => {
+    const child = spawn(command, args, {
+      cwd,
+      env,
+      shell,
+      windowsHide: true,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+
+    const handle: TerminalProcessHandle = {
+      pid: child.pid ?? null,
+      kill(signal?: string) {
+        try {
+          if (!child.killed) {
+            child.kill((signal as NodeJS.Signals | undefined) ?? "SIGTERM");
+          }
+        } catch {
+          /* already dead */
+        }
+      },
+      onStdout(handler) {
+        child.stdout?.on("data", (buf: Buffer) =>
+          handler(buf.toString("utf8")),
+        );
+      },
+      onStderr(handler) {
+        child.stderr?.on("data", (buf: Buffer) =>
+          handler(buf.toString("utf8")),
+        );
+      },
+      onExit(handler) {
+        child.on("exit", (code, signal) => {
+          handler({
+            exitCode: code,
+            signal: signal ?? null,
+          });
+        });
+        child.on("error", () => {
+          handler({
+            exitCode: null,
+            signal: null,
+          });
+        });
+      },
+    };
+    return handle;
+  };
 }
 
 export const nodeSpawnEngine: SpawnEngine = (plan) => {

@@ -45,6 +45,15 @@ export type FakeEngineOptions = {
    * Default false (opt-in for edit-review demos/tests).
    */
   proposeEditsOnPrompt?: boolean;
+  /**
+   * When true, demo turns request command approval and emit a successful
+   * Activity-panel command (exit 0).
+   */
+  commandTurn?: boolean;
+  /**
+   * When true with commandTurn, the demo command exits nonzero after approve.
+   */
+  commandFail?: boolean;
 };
 
 /**
@@ -70,13 +79,22 @@ export class FakeAgentEngine implements AgentEnginePort {
   private readonly faultOnPrompt: boolean;
   private readonly richTurn: boolean;
   private readonly proposeEditsOnPrompt: boolean;
+  private readonly commandTurn: boolean;
+  private readonly commandFail: boolean;
   private batchCounter = 0;
+  private permissionWaiters = new Map<
+    string,
+    { resolve: () => void; reject: (err: Error) => void }
+  >();
+  private permissionSeq = 0;
 
   constructor(options: FakeEngineOptions = {}) {
     this.streamDelayMs = options.streamDelayMs ?? 40;
     this.faultOnPrompt = options.faultOnPrompt ?? false;
     this.richTurn = options.richTurn ?? true;
     this.proposeEditsOnPrompt = options.proposeEditsOnPrompt ?? false;
+    this.commandTurn = options.commandTurn ?? false;
+    this.commandFail = options.commandFail ?? false;
   }
 
   private nextEventId(): string {
@@ -105,6 +123,11 @@ export class FakeAgentEngine implements AgentEnginePort {
   }
 
   private delay(ms: number): Promise<void> {
+    // Zero delay is synchronous for tests: avoid setTimeout races where a
+    // fixed flush samples "Turn in progress…" before turn.completed lands.
+    if (ms <= 0) {
+      return Promise.resolve();
+    }
     return new Promise((resolve) => {
       const t = setTimeout(() => {
         this.timers = this.timers.filter((x) => x !== t);
@@ -269,6 +292,10 @@ export class FakeAgentEngine implements AgentEnginePort {
       await this.emitDemoFileEditBatch(turnId);
     }
 
+    if (this.commandTurn && !this.cancelRequested && !this.disposed) {
+      await this.emitCommandDemo(turnId);
+    }
+
     const chunks = this.proposeEditsOnPrompt
       ? [
           "I've prepared a multi-file edit for your review. ",
@@ -406,6 +433,149 @@ export class FakeAgentEngine implements AgentEnginePort {
     });
   }
 
+  /** Emits a project-local command approval + terminal activity for UI tests. */
+  private async emitCommandDemo(turnId: string): Promise<void> {
+    const toolCallId = `tool-exec-${turnId}`;
+    const terminalId = `term-fake-${turnId}`;
+    this.permissionSeq += 1;
+    const requestId = `perm-fake-${this.permissionSeq}`;
+
+    this.emit({
+      type: "tool.started",
+      sessionId: this.sessionId,
+      turnId,
+      payload: {
+        toolCallId,
+        title: "Execute `echo SPIKE_TERM_OK`",
+        kind: "execute",
+        status: "pending",
+        rawInput: { command: "echo SPIKE_TERM_OK" },
+      },
+    });
+
+    this.emit({
+      type: "approval.requested",
+      sessionId: this.sessionId,
+      turnId,
+      payload: {
+        requestId,
+        toolCallId,
+        title: "Run project-local command: echo SPIKE_TERM_OK",
+        kind: "execute",
+        options: [
+          { optionId: "allow-once", name: "Allow once", kind: "allow_once" },
+          { optionId: "reject-once", name: "Reject", kind: "reject_once" },
+        ],
+        preview: { command: "echo SPIKE_TERM_OK", cwd: this.projectPath },
+      },
+    });
+
+    if (this.snapshot?.yoloEnabled) {
+      this.emit({
+        type: "approval.resolved",
+        sessionId: this.sessionId,
+        turnId,
+        payload: {
+          requestId,
+          outcome: { outcome: "selected", optionId: "allow-once" },
+          source: "yolo",
+        },
+      });
+    } else {
+      const allowed = await new Promise<boolean>((resolve) => {
+        this.permissionWaiters.set(requestId, {
+          resolve: () => resolve(true),
+          reject: () => resolve(false),
+        });
+      });
+      if (!allowed || this.cancelRequested || this.disposed) {
+        this.emit({
+          type: "tool.finished",
+          sessionId: this.sessionId,
+          turnId,
+          payload: { toolCallId, status: "cancelled" },
+        });
+        return;
+      }
+    }
+
+    if (this.cancelRequested || this.disposed) return;
+
+    this.emit({
+      type: "tool.updated",
+      sessionId: this.sessionId,
+      turnId,
+      payload: {
+        toolCallId,
+        status: "in_progress",
+        content: [{ type: "terminal", terminalId }],
+      },
+    });
+
+    this.emit({
+      type: "command.started",
+      sessionId: this.sessionId,
+      turnId,
+      payload: {
+        terminalId,
+        toolCallId,
+        command: "echo SPIKE_TERM_OK",
+        cwd: this.projectPath,
+      },
+    });
+
+    await this.delay(this.streamDelayMs);
+    if (this.cancelRequested || this.disposed) {
+      this.emit({
+        type: "command.killed",
+        sessionId: this.sessionId,
+        turnId,
+        payload: { terminalId, reason: "user" },
+      });
+      return;
+    }
+
+    const output = this.commandFail
+      ? "command failed: nonzero exit\n"
+      : "SPIKE_TERM_OK\n";
+    this.emit({
+      type: "command.output",
+      sessionId: this.sessionId,
+      turnId,
+      payload: {
+        terminalId,
+        chunk: output,
+        snapshot: output,
+        truncated: false,
+      },
+    });
+    this.emit({
+      type: "command.exited",
+      sessionId: this.sessionId,
+      turnId,
+      payload: {
+        terminalId,
+        exitCode: this.commandFail ? 1 : 0,
+        signal: null,
+      },
+    });
+    this.emit({
+      type: "command.released",
+      sessionId: this.sessionId,
+      turnId,
+      payload: { terminalId },
+    });
+    this.emit({
+      type: "tool.finished",
+      sessionId: this.sessionId,
+      turnId,
+      payload: {
+        toolCallId,
+        status: this.commandFail ? "failed" : "completed",
+      },
+    });
+  }
+
   async respondToApproval(
     requestId: string,
     decision: ApprovalOutcome,
@@ -421,6 +591,17 @@ export class FakeAgentEngine implements AgentEnginePort {
         source: "user",
       },
     });
+    const waiter = this.permissionWaiters.get(requestId);
+    if (waiter) {
+      this.permissionWaiters.delete(requestId);
+      const allowed =
+        decision.outcome === "selected" &&
+        (decision.optionId.includes("allow") ||
+          decision.optionId === "allow-once" ||
+          decision.optionId === "allow-always");
+      if (allowed) waiter.resolve();
+      else waiter.reject(new Error("rejected"));
+    }
   }
 
   async proposeFileChangeBatch(batch: FileChangeBatch): Promise<void> {
@@ -529,6 +710,20 @@ export class FakeAgentEngine implements AgentEnginePort {
       turnId: this.openTurnId,
       payload: { turnId: this.openTurnId, reason: "user" },
     });
+    for (const [requestId, waiter] of this.permissionWaiters) {
+      this.emit({
+        type: "approval.resolved",
+        sessionId: this.sessionId,
+        turnId: this.openTurnId,
+        payload: {
+          requestId,
+          outcome: { outcome: "cancelled" },
+          source: "cancel",
+        },
+      });
+      waiter.reject(new Error("cancelled"));
+    }
+    this.permissionWaiters.clear();
   }
 
   async emergencyStop(): Promise<void> {

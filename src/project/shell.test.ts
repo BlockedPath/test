@@ -40,6 +40,8 @@ describe("ProjectShell (first-use + Files rail + ConversationApp)", () => {
   function buildShell(options?: {
     demoPrompt?: string | null;
     host?: ReturnType<typeof createDemoProjectHost>;
+    /** Engine factory override (defaults to rich fake turn). */
+    createEngine?: () => FakeAgentEngine;
   }): ProjectShell {
     const host = options?.host ?? createDemoProjectHost();
     const projects = new ProjectService({
@@ -49,10 +51,21 @@ describe("ProjectShell (first-use + Files rail + ConversationApp)", () => {
     });
     return new ProjectShell(root, {
       projects,
-      createEngine: () =>
-        new FakeAgentEngine({ streamDelayMs: 0, richTurn: true }),
+      createEngine:
+        options?.createEngine ??
+        (() => new FakeAgentEngine({ streamDelayMs: 0, richTurn: true })),
       autoDemoPrompt: options?.demoPrompt ?? null,
     });
+  }
+
+  async function openDemoToWorkspace(shell: ProjectShell): Promise<void> {
+    await shell.mount();
+    (root.querySelector('[data-testid="open-demo"]') as HTMLButtonElement).click();
+    await flush();
+    (
+      root.querySelector('[data-testid="trust-continue"]') as HTMLButtonElement
+    ).click();
+    await flush(20);
   }
 
   it("starts on the choose-project phase", async () => {
@@ -193,5 +206,53 @@ describe("ProjectShell (first-use + Files rail + ConversationApp)", () => {
     expect(textOf(root.querySelector('[data-testid="trust-project-path"]'))).toMatch(
       /grok-gui-demo-project/,
     );
+  });
+
+  it("keeps ProjectShell Files rail while ConversationApp handles command approval and Activity", async () => {
+    const shell = buildShell({
+      demoPrompt: null,
+      createEngine: () =>
+        new FakeAgentEngine({
+          streamDelayMs: 0,
+          richTurn: false,
+          commandTurn: true,
+        }),
+    });
+    await openDemoToWorkspace(shell);
+
+    // #13 chrome still present
+    expect(root.querySelector('[data-testid="project-workspace"]')).toBeTruthy();
+    expect(root.querySelector('[data-testid="files-rail"]')).toBeTruthy();
+    expect(root.querySelector('[data-testid="conversation-host"]')).toBeTruthy();
+
+    const input = root.querySelector(
+      '[data-testid="prompt-input"]',
+    ) as HTMLTextAreaElement;
+    const send = root.querySelector('[data-testid="send"]') as HTMLButtonElement;
+    input.value = "run a project-local command";
+    send.click();
+    await flush(30);
+
+    // #15 approval + Activity path under ProjectShell
+    expect(root.querySelector('[data-testid="approval-panel"]')).toBeTruthy();
+    expect(
+      root.querySelector('[data-testid="approval-panel"]')!.classList.contains(
+        "hidden",
+      ),
+    ).toBe(false);
+    expect(textOf(root.querySelector('[data-testid="messages"]'))).toMatch(
+      /run a project-local command/,
+    );
+
+    (root.querySelector('[data-testid="approval-allow"]') as HTMLButtonElement).click();
+    await flush(40);
+
+    expect(root.querySelector('[data-testid="activity-panel"]')).toBeTruthy();
+    expect(textOf(root.querySelector('[data-testid="activity-output"]'))).toMatch(
+      /SPIKE_TERM_OK/,
+    );
+    // Files rail remains after command activity
+    expect(root.querySelector('[data-testid="files-rail"]')).toBeTruthy();
+    expect(root.querySelector('[data-testid="file-tree"]')).toBeTruthy();
   });
 });

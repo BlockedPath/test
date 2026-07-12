@@ -292,6 +292,44 @@ export type GuiEvent =
       };
     })
   | (GuiEventBase & {
+      type: "command.started";
+      payload: {
+        terminalId: string;
+        toolCallId?: string;
+        command: string;
+        args?: string[];
+        cwd?: string;
+      };
+    })
+  | (GuiEventBase & {
+      type: "command.output";
+      payload: {
+        terminalId: string;
+        chunk?: string;
+        snapshot?: string;
+        truncated?: boolean;
+      };
+    })
+  | (GuiEventBase & {
+      type: "command.exited";
+      payload: {
+        terminalId: string;
+        exitCode?: number | null;
+        signal?: string | null;
+      };
+    })
+  | (GuiEventBase & {
+      type: "command.killed";
+      payload: {
+        terminalId: string;
+        reason: "user" | "agent" | "timeout" | "emergency_stop";
+      };
+    })
+  | (GuiEventBase & {
+      type: "command.released";
+      payload: { terminalId: string };
+    })
+  | (GuiEventBase & {
       type: "yolo.changed";
       payload: { enabled: boolean };
     })

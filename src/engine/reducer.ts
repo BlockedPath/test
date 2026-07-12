@@ -4,6 +4,7 @@ import type {
   GuiEvent,
   Message,
   SessionSnapshot,
+  TerminalRecord,
   ToolCallRecord,
 } from "./types";
 
@@ -237,6 +238,7 @@ export function reduce(
       return {
         ...snapshot,
         state: "cancelling",
+        terminals: killRunningTerminals(snapshot.terminals),
       };
 
     case "turn.cancelled":
@@ -251,6 +253,7 @@ export function reduce(
         messages: finishStreamingMessages(snapshot.messages),
         pendingApprovals: [],
         tools: cancelOpenTools(snapshot.tools),
+        terminals: killRunningTerminals(snapshot.terminals),
         fileChangeBatches: rejectPendingBatches(snapshot.fileChangeBatches),
       };
 
@@ -348,6 +351,92 @@ export function reduce(
       };
     }
 
+    case "command.started": {
+      const record: TerminalRecord = {
+        terminalId: event.payload.terminalId,
+        toolCallId: event.payload.toolCallId,
+        command: event.payload.command,
+        args: event.payload.args,
+        cwd: event.payload.cwd,
+        output: "",
+        status: "running",
+      };
+      return {
+        ...snapshot,
+        terminals: {
+          ...snapshot.terminals,
+          [record.terminalId]: record,
+        },
+      };
+    }
+
+    case "command.output": {
+      const prev = snapshot.terminals[event.payload.terminalId];
+      if (!prev) return snapshot;
+      const nextOutput =
+        event.payload.snapshot !== undefined
+          ? event.payload.snapshot
+          : prev.output + (event.payload.chunk ?? "");
+      return {
+        ...snapshot,
+        terminals: {
+          ...snapshot.terminals,
+          [event.payload.terminalId]: {
+            ...prev,
+            output: nextOutput,
+          },
+        },
+      };
+    }
+
+    case "command.exited": {
+      const prev = snapshot.terminals[event.payload.terminalId];
+      if (!prev) return snapshot;
+      return {
+        ...snapshot,
+        terminals: {
+          ...snapshot.terminals,
+          [event.payload.terminalId]: {
+            ...prev,
+            exitCode: event.payload.exitCode ?? null,
+            signal: event.payload.signal ?? null,
+            status: prev.status === "killed" ? "killed" : "exited",
+          },
+        },
+      };
+    }
+
+    case "command.killed": {
+      const prev = snapshot.terminals[event.payload.terminalId];
+      if (!prev) return snapshot;
+      return {
+        ...snapshot,
+        terminals: {
+          ...snapshot.terminals,
+          [event.payload.terminalId]: {
+            ...prev,
+            status: "killed",
+          },
+        },
+      };
+    }
+
+    case "command.released": {
+      const prev = snapshot.terminals[event.payload.terminalId];
+      if (!prev) return snapshot;
+      // Keep output after release for Activity panel auditability.
+      return {
+        ...snapshot,
+        terminals: {
+          ...snapshot.terminals,
+          [event.payload.terminalId]: {
+            ...prev,
+            status: "released",
+          },
+        },
+      };
+    }
+
     case "yolo.changed":
       return { ...snapshot, yoloEnabled: event.payload.enabled };
 
@@ -392,7 +481,11 @@ export function reduce(
 
     case "session.emergency_stop":
       if (event.payload.phase === "cancel") {
-        return { ...snapshot, state: "cancelling" };
+        return {
+          ...snapshot,
+          state: "cancelling",
+          terminals: killRunningTerminals(snapshot.terminals),
+        };
       }
       return {
         ...snapshot,
@@ -400,6 +493,7 @@ export function reduce(
         messages: finishStreamingMessages(snapshot.messages),
         pendingApprovals: [],
         tools: cancelOpenTools(snapshot.tools),
+        terminals: killRunningTerminals(snapshot.terminals),
         fileChangeBatches: rejectPendingBatches(snapshot.fileChangeBatches),
       };
 
@@ -444,6 +538,7 @@ export function reduce(
         messages: finishStreamingMessages(snapshot.messages),
         pendingApprovals: [],
         tools: cancelOpenTools(snapshot.tools),
+        terminals: killRunningTerminals(snapshot.terminals),
         fileChangeBatches: rejectPendingBatches(snapshot.fileChangeBatches),
       };
 
@@ -470,6 +565,20 @@ function cancelOpenTools(
       next[id] = { ...tool, status: "cancelled" };
     } else {
       next[id] = tool;
+    }
+  }
+  return next;
+}
+
+function killRunningTerminals(
+  terminals: Record<string, TerminalRecord>,
+): Record<string, TerminalRecord> {
+  const next: Record<string, TerminalRecord> = {};
+  for (const [id, term] of Object.entries(terminals)) {
+    if (term.status === "running") {
+      next[id] = { ...term, status: "killed" };
+    } else {
+      next[id] = term;
     }
   }
   return next;
