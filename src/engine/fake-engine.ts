@@ -113,6 +113,11 @@ export class FakeAgentEngine implements AgentEnginePort {
   }
 
   private delay(ms: number): Promise<void> {
+    // Zero delay is synchronous for tests: avoid setTimeout races where a
+    // fixed flush samples "Turn in progress…" before turn.completed lands.
+    if (ms <= 0) {
+      return Promise.resolve();
+    }
     return new Promise((resolve) => {
       const t = setTimeout(() => {
         this.timers = this.timers.filter((x) => x !== t);

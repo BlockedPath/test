@@ -16,6 +16,26 @@ function textOf(el: Element | null): string {
   return (el?.textContent ?? "").replace(/\s+/g, " ").trim();
 }
 
+/** Poll until predicate is true (deterministic vs fixed flush races). */
+async function waitUntil(
+  predicate: () => boolean,
+  options: { timeoutMs?: number; intervalMs?: number; label?: string } = {},
+): Promise<void> {
+  const timeoutMs = options.timeoutMs ?? 2_000;
+  const intervalMs = options.intervalMs ?? 5;
+  const label = options.label ?? "condition";
+  const start = Date.now();
+  // Drain microtasks first (zero-delay fake streams complete here).
+  await Promise.resolve();
+  await Promise.resolve();
+  while (!predicate()) {
+    if (Date.now() - start > timeoutMs) {
+      throw new Error(`Timed out waiting for ${label}`);
+    }
+    await flush(intervalMs);
+  }
+}
+
 describe("ConversationApp (workspace UI × FakeAgentEngine)", () => {
   let root: HTMLElement;
 
@@ -136,14 +156,19 @@ describe("ConversationApp (workspace UI × FakeAgentEngine)", () => {
     const send = root.querySelector('[data-testid="send"]') as HTMLButtonElement;
     input.value = "finish cleanly";
     send.click();
-    await flush(30);
+
+    await waitUntil(
+      () => engine.getSnapshot()?.state === "idle" &&
+        engine.getSnapshot()?.turn?.stopReason === "end_turn",
+      { label: "successful end_turn" },
+    );
 
     const turnStatus = root.querySelector('[data-testid="turn-status"]');
     expect(turnStatus).toBeTruthy();
     expect(textOf(turnStatus)).toMatch(/end_turn|completed|success/i);
     expect(textOf(turnStatus)).not.toMatch(/cancell/i);
 
-    // Cancel path: longer stream
+    // Cancel path: longer stream so Stop can land mid-turn
     const engine2 = new FakeAgentEngine({ streamDelayMs: 40, richTurn: false });
     document.body.innerHTML = "";
     root = document.createElement("div");
@@ -158,10 +183,15 @@ describe("ConversationApp (workspace UI × FakeAgentEngine)", () => {
 
     input2.value = "long running cancel me";
     send2.click();
-    await flush(20);
-    expect(stop.disabled).toBe(false);
+    await waitUntil(
+      () => engine2.getSnapshot()?.state === "running" && !stop.disabled,
+      { label: "turn running so Stop is enabled" },
+    );
     stop.click();
-    await flush(120);
+    await waitUntil(
+      () => engine2.getSnapshot()?.turn?.stopReason === "cancelled",
+      { label: "cancelled stop reason" },
+    );
 
     const cancelled = root.querySelector('[data-testid="turn-status"]');
     expect(textOf(cancelled)).toMatch(/cancell/i);
