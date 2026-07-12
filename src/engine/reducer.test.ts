@@ -306,6 +306,112 @@ describe("session reducer lifecycle", () => {
     expect(snap.turn?.stopReason).toBe("cancelled");
   });
 
+  it("tracks command lifecycle in terminals and keeps output after release", () => {
+    let snap = reduce(
+      createEmptySnapshot({ sessionId: "sess-1", projectPath: "/proj" }),
+      evt("session.created", { sessionId: "sess-1", cwd: "/proj" }),
+    );
+    snap = reduce(
+      snap,
+      evt(
+        "turn.started",
+        {
+          turnId: "turn-1",
+          prompt: [{ type: "text", text: "run tests" }],
+        },
+        { turnId: "turn-1" },
+      ),
+    );
+    snap = reduce(
+      snap,
+      evt(
+        "command.started",
+        {
+          terminalId: "term-1",
+          toolCallId: "tool-exec-1",
+          command: "npm",
+          args: ["test"],
+          cwd: "/proj",
+        },
+        { turnId: "turn-1" },
+      ),
+    );
+    expect(snap.terminals["term-1"]?.status).toBe("running");
+    expect(snap.terminals["term-1"]?.command).toBe("npm");
+
+    snap = reduce(
+      snap,
+      evt(
+        "command.output",
+        {
+          terminalId: "term-1",
+          chunk: "ok\n",
+          snapshot: "ok\n",
+        },
+        { turnId: "turn-1" },
+      ),
+    );
+    expect(snap.terminals["term-1"]?.output).toBe("ok\n");
+
+    snap = reduce(
+      snap,
+      evt(
+        "command.exited",
+        { terminalId: "term-1", exitCode: 0, signal: null },
+        { turnId: "turn-1" },
+      ),
+    );
+    expect(snap.terminals["term-1"]?.status).toBe("exited");
+    expect(snap.terminals["term-1"]?.exitCode).toBe(0);
+
+    snap = reduce(
+      snap,
+      evt("command.released", { terminalId: "term-1" }, { turnId: "turn-1" }),
+    );
+    expect(snap.terminals["term-1"]?.status).toBe("released");
+    expect(snap.terminals["term-1"]?.output).toBe("ok\n");
+  });
+
+  it("marks running terminals killed on cancel", () => {
+    let snap = reduce(
+      createEmptySnapshot({ sessionId: "sess-1", projectPath: "/proj" }),
+      evt("session.created", { sessionId: "sess-1", cwd: "/proj" }),
+    );
+    snap = reduce(
+      snap,
+      evt(
+        "turn.started",
+        {
+          turnId: "turn-1",
+          prompt: [{ type: "text", text: "hang" }],
+        },
+        { turnId: "turn-1" },
+      ),
+    );
+    snap = reduce(
+      snap,
+      evt(
+        "command.started",
+        {
+          terminalId: "term-1",
+          command: "sleep",
+          args: ["99"],
+          cwd: "/proj",
+        },
+        { turnId: "turn-1" },
+      ),
+    );
+    snap = reduce(
+      snap,
+      evt(
+        "turn.cancel_requested",
+        { turnId: "turn-1", reason: "user" },
+        { turnId: "turn-1" },
+      ),
+    );
+    expect(snap.terminals["term-1"]?.status).toBe("killed");
+  });
+
   it("appends thought chunks as thought-role messages distinct from assistant text", () => {
     let snap = reduce(
       createEmptySnapshot({ sessionId: "sess-1", projectPath: "/proj" }),

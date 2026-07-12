@@ -13,6 +13,7 @@ import type {
   GuiEvent,
   SessionSnapshot,
   StartOptions,
+  ToolKind,
 } from "./types";
 import {
   CLIENT_INFO,
@@ -32,6 +33,11 @@ import { planEngineSpawn, assertDirectSpawn } from "./spawn-plan";
 import { JsonRpcClient, type RpcError } from "./acp/jsonrpc-client";
 import type { EngineProcessHandle, SpawnEngine } from "./acp/transport";
 import { redactSecrets, safeErrorMessage } from "./redact";
+import {
+  TerminalBridge,
+  type SpawnTerminalProcess,
+  type TerminalCreateRequest,
+} from "./terminal-bridge";
 
 export type GrokAcpEngineDeps = {
   discovery: DiscoveryHost;
@@ -42,6 +48,8 @@ export type GrokAcpEngineDeps = {
   /** Skip identity checks (tests only). */
   skipIdentity?: boolean;
   requestTimeoutMs?: number;
+  /** Injectable terminal process spawner (tests). */
+  spawnTerminal?: SpawnTerminalProcess;
 };
 
 function nowIso(): string {
@@ -81,9 +89,23 @@ export class GrokAcpEngine implements AgentEnginePort {
   private discoveryResult: DiscoveryResult | null = null;
   private identityResult: IdentityCheckResult | null = null;
   private readonly requestTimeoutMs: number;
+  private terminalBridge: TerminalBridge | null = null;
+  private permissionWaiters = new Map<
+    string,
+    {
+      resolve: (result: unknown) => void;
+    }
+  >();
+  private permissionSeq = 0;
+  private yoloEnabled = false;
 
   constructor(private readonly deps: GrokAcpEngineDeps) {
     this.requestTimeoutMs = deps.requestTimeoutMs ?? 60_000;
+  }
+
+  /** Test/diagnostic access to the terminal bridge. */
+  getTerminalBridge(): TerminalBridge | null {
+    return this.terminalBridge;
   }
 
   /** Last discovery outcome (for UI acquisition guidance). */
@@ -281,6 +303,77 @@ export class GrokAcpEngine implements AgentEnginePort {
       await this.teardownProcess();
       throw new Error(msg);
     }
+
+    this.terminalBridge = new TerminalBridge({
+      // Node/Tauri hosts inject spawnTerminal (createNodeTerminalSpawner).
+      // Browser UI uses FakeAgentEngine and never reaches real terminals.
+      spawnProcess: this.deps.spawnTerminal,
+      defaultCwd: options.projectPath,
+      baseEnv: (this.deps.discovery.env ?? {}) as NodeJS.ProcessEnv,
+      hooks: {
+        onStarted: (info) => {
+          this.emit({
+            type: "command.started",
+            sessionId: this.sessionId || "pending",
+            turnId: this.openTurnId ?? undefined,
+            payload: info,
+          });
+        },
+        onOutput: (info) => {
+          this.emit({
+            type: "command.output",
+            sessionId: this.sessionId || "pending",
+            turnId: this.openTurnId ?? undefined,
+            payload: {
+              terminalId: info.terminalId,
+              chunk: info.chunk,
+              snapshot: info.snapshot,
+              truncated: info.truncated,
+            },
+          });
+        },
+        onExited: (info) => {
+          this.emit({
+            type: "command.exited",
+            sessionId: this.sessionId || "pending",
+            turnId: this.openTurnId ?? undefined,
+            payload: info,
+          });
+        },
+        onKilled: (info) => {
+          this.emit({
+            type: "command.killed",
+            sessionId: this.sessionId || "pending",
+            turnId: this.openTurnId ?? undefined,
+            payload: info,
+          });
+        },
+        onReleased: (info) => {
+          this.emit({
+            type: "command.released",
+            sessionId: this.sessionId || "pending",
+            turnId: this.openTurnId ?? undefined,
+            payload: info,
+          });
+        },
+        onFailure: (info) => {
+          // Terminal failures are tool/command scoped — do not fault the Session.
+          this.emit({
+            type: "engine.stderr",
+            sessionId: this.sessionId || "pending",
+            turnId: this.openTurnId ?? undefined,
+            payload: {
+              text: redactSecrets(
+                `[${info.code}] ${info.message}${
+                  info.terminalId ? ` (${info.terminalId})` : ""
+                }`,
+              ),
+              level: "error",
+            },
+          });
+        },
+      },
+    });
 
     this.started = true;
     this.emit({
@@ -516,18 +609,22 @@ export class GrokAcpEngine implements AgentEnginePort {
     decision: ApprovalOutcome,
   ): Promise<void> {
     this.assertSession();
-    // Permission responses are correlated at the JSON-RPC layer when the
-    // agent issues session/request_permission; this path covers GUI-driven resolve.
     this.emit({
       type: "approval.resolved",
       sessionId: this.sessionId,
       turnId: this.openTurnId ?? undefined,
       payload: { requestId, outcome: decision, source: "user" },
     });
+    const waiter = this.permissionWaiters.get(requestId);
+    if (waiter) {
+      this.permissionWaiters.delete(requestId);
+      waiter.resolve({ outcome: decision });
+    }
   }
 
   async setYolo(enabled: boolean): Promise<void> {
     this.assertSession();
+    this.yoloEnabled = enabled;
     this.emit({
       type: "yolo.changed",
       sessionId: this.sessionId,
@@ -537,6 +634,9 @@ export class GrokAcpEngine implements AgentEnginePort {
 
   async cancel(): Promise<void> {
     this.assertSession();
+    // Always stop running commands, even if the prompt already finished.
+    this.terminalBridge?.killAll("user");
+    this.cancelPendingPermissions();
     if (!this.openTurnId || !this.rpc) return;
     this.emit({
       type: "turn.cancel_requested",
@@ -556,6 +656,9 @@ export class GrokAcpEngine implements AgentEnginePort {
       turnId,
       payload: { phase: "cancel" },
     });
+
+    this.terminalBridge?.killAll("emergency_stop");
+    this.cancelPendingPermissions();
 
     try {
       this.rpc?.notify("session/cancel", {
@@ -584,6 +687,9 @@ export class GrokAcpEngine implements AgentEnginePort {
 
   async dispose(): Promise<void> {
     const sid = this.sessionId || "pending";
+    this.terminalBridge?.disposeAll();
+    this.terminalBridge = null;
+    this.cancelPendingPermissions();
     await this.teardownProcess();
     this.emit({
       type: "session.disposed",
@@ -593,6 +699,23 @@ export class GrokAcpEngine implements AgentEnginePort {
     this.disposed = true;
     this.started = false;
     this.openTurnId = null;
+  }
+
+  private cancelPendingPermissions(): void {
+    for (const [requestId, waiter] of this.permissionWaiters) {
+      this.emit({
+        type: "approval.resolved",
+        sessionId: this.sessionId || "pending",
+        turnId: this.openTurnId ?? undefined,
+        payload: {
+          requestId,
+          outcome: { outcome: "cancelled" },
+          source: "cancel",
+        },
+      });
+      waiter.resolve({ outcome: { outcome: "cancelled" } });
+    }
+    this.permissionWaiters.clear();
   }
 
   private async teardownProcess(): Promise<void> {
@@ -638,9 +761,15 @@ export class GrokAcpEngine implements AgentEnginePort {
         title?: string;
         kind?: string;
         status?: string;
+        rawInput?: unknown;
+        rawOutput?: unknown;
+        locations?: Array<{ path: string; line?: number }>;
+        contentBlocks?: unknown[];
       };
     };
-    const update = p?.update;
+    const update = p?.update as
+      | (NonNullable<typeof p.update> & { content?: unknown })
+      | undefined;
     if (!update) {
       this.emit({
         type: "engine.unknown_update",
@@ -651,32 +780,49 @@ export class GrokAcpEngine implements AgentEnginePort {
     }
 
     const kind = update.sessionUpdate;
-    if (kind === "agent_message_chunk" && update.content?.text != null) {
-      this.emit({
-        type: "assistant.message_chunk",
-        sessionId: this.sessionId || p.sessionId || "pending",
-        turnId: this.openTurnId ?? undefined,
-        payload: {
-          messageId: `asst-${this.openTurnId ?? "stream"}`,
-          chunk: { type: "text", text: update.content.text },
-        },
-      });
-      return;
+    if (kind === "agent_message_chunk") {
+      const text =
+        update.content &&
+        typeof update.content === "object" &&
+        "text" in update.content
+          ? String((update.content as { text?: string }).text ?? "")
+          : "";
+      if (text) {
+        this.emit({
+          type: "assistant.message_chunk",
+          sessionId: this.sessionId || p.sessionId || "pending",
+          turnId: this.openTurnId ?? undefined,
+          payload: {
+            messageId: `asst-${this.openTurnId ?? "stream"}`,
+            chunk: { type: "text", text },
+          },
+        });
+        return;
+      }
     }
 
-    if (kind === "agent_thought_chunk" && update.content?.text != null) {
-      this.emit({
-        type: "assistant.thought_chunk",
-        sessionId: this.sessionId || p.sessionId || "pending",
-        turnId: this.openTurnId ?? undefined,
-        payload: {
-          chunk: { type: "text", text: update.content.text },
-        },
-      });
-      return;
+    if (kind === "agent_thought_chunk") {
+      const text =
+        update.content &&
+        typeof update.content === "object" &&
+        "text" in update.content
+          ? String((update.content as { text?: string }).text ?? "")
+          : "";
+      if (text) {
+        this.emit({
+          type: "assistant.thought_chunk",
+          sessionId: this.sessionId || p.sessionId || "pending",
+          turnId: this.openTurnId ?? undefined,
+          payload: {
+            chunk: { type: "text", text },
+          },
+        });
+        return;
+      }
     }
 
     if (kind === "tool_call" && update.toolCallId) {
+      const toolContent = this.extractToolContent(update);
       this.emit({
         type: "tool.started",
         sessionId: this.sessionId || "pending",
@@ -684,10 +830,66 @@ export class GrokAcpEngine implements AgentEnginePort {
         payload: {
           toolCallId: update.toolCallId,
           title: update.title ?? "tool",
-          kind: (update.kind as "other") || "other",
+          kind: (update.kind as ToolKind) || "other",
           status: (update.status as "pending") || "pending",
+          rawInput: update.rawInput,
+          locations: update.locations,
         },
       });
+      if (toolContent.length) {
+        this.emit({
+          type: "tool.updated",
+          sessionId: this.sessionId || "pending",
+          turnId: this.openTurnId ?? undefined,
+          payload: {
+            toolCallId: update.toolCallId,
+            content: toolContent,
+          },
+        });
+      }
+      return;
+    }
+
+    if (kind === "tool_call_update" && update.toolCallId) {
+      const toolContent = this.extractToolContent(update);
+      const status = update.status as
+        | "pending"
+        | "in_progress"
+        | "completed"
+        | "failed"
+        | "cancelled"
+        | undefined;
+      this.emit({
+        type: "tool.updated",
+        sessionId: this.sessionId || "pending",
+        turnId: this.openTurnId ?? undefined,
+        payload: {
+          toolCallId: update.toolCallId,
+          status,
+          title: update.title,
+          content: toolContent.length ? toolContent : undefined,
+          rawInput: update.rawInput,
+          rawOutput: update.rawOutput,
+          locations: update.locations,
+        },
+      });
+      if (
+        status === "completed" ||
+        status === "failed" ||
+        status === "cancelled"
+      ) {
+        this.emit({
+          type: "tool.finished",
+          sessionId: this.sessionId || "pending",
+          turnId: this.openTurnId ?? undefined,
+          payload: {
+            toolCallId: update.toolCallId,
+            status,
+            content: toolContent.length ? toolContent : undefined,
+            rawOutput: update.rawOutput,
+          },
+        });
+      }
       return;
     }
 
@@ -698,17 +900,24 @@ export class GrokAcpEngine implements AgentEnginePort {
     });
   }
 
+  private extractToolContent(update: {
+    content?: unknown;
+    contentBlocks?: unknown[];
+  }): unknown[] {
+    if (Array.isArray(update.content)) return update.content;
+    if (Array.isArray(update.contentBlocks)) return update.contentBlocks;
+    return [];
+  }
+
   private async onAgentRequest(
     method: string,
     params: unknown,
   ): Promise<unknown> {
-    // Minimal stubs — full fs/terminal bridges land with later tickets.
-    if (method.startsWith("fs/")) {
-      throw Object.assign(new Error(`unsupported client method ${method}`), {
-        code: -32601,
-      });
-    }
     if (method.startsWith("terminal/")) {
+      return this.handleTerminalMethod(method, params);
+    }
+    if (method.startsWith("fs/")) {
+      // File tools land with the edits ticket; still surface unknown method cleanly.
       throw Object.assign(new Error(`unsupported client method ${method}`), {
         code: -32601,
       });
@@ -717,33 +926,7 @@ export class GrokAcpEngine implements AgentEnginePort {
       method === "session/request_permission" ||
       method.includes("permission")
     ) {
-      // Default deny until UI approval path is wired; still emit event.
-      const p = params as {
-        toolCall?: { toolCallId?: string; title?: string };
-        options?: Array<{
-          optionId: string;
-          name: string;
-          kind: "allow_once" | "allow_always" | "reject_once" | "reject_always";
-        }>;
-      };
-      const requestId = `perm-${this.eventSeq + 1}`;
-      this.emit({
-        type: "approval.requested",
-        sessionId: this.sessionId || "pending",
-        turnId: this.openTurnId ?? undefined,
-        payload: {
-          requestId,
-          toolCallId: p.toolCall?.toolCallId ?? "unknown",
-          title: p.toolCall?.title,
-          options: p.options ?? [
-            { optionId: "allow-once", name: "Allow once", kind: "allow_once" },
-            { optionId: "reject-once", name: "Reject", kind: "reject_once" },
-          ],
-        },
-      });
-      return {
-        outcome: { outcome: "selected", optionId: "reject-once" },
-      };
+      return this.handlePermissionRequest(params);
     }
 
     // Unknown vendor methods: tolerate without crashing
@@ -754,6 +937,108 @@ export class GrokAcpEngine implements AgentEnginePort {
     });
     throw Object.assign(new Error(`unsupported client method ${method}`), {
       code: -32601,
+    });
+  }
+
+  private handleTerminalMethod(method: string, params: unknown): unknown {
+    if (!this.terminalBridge) {
+      throw Object.assign(new Error("Terminal bridge not ready"), {
+        code: -32000,
+      });
+    }
+    const p = (params ?? {}) as TerminalCreateRequest & {
+      terminalId?: string;
+    };
+
+    switch (method) {
+      case "terminal/create":
+        return this.terminalBridge.create({
+          sessionId: p.sessionId,
+          command: p.command,
+          args: p.args,
+          cwd: p.cwd || this.projectPath,
+          env: p.env,
+          outputByteLimit: p.outputByteLimit,
+          toolCallId: p.toolCallId,
+        });
+      case "terminal/output":
+        return this.terminalBridge.output(String(p.terminalId ?? ""));
+      case "terminal/wait_for_exit":
+        return this.terminalBridge.waitForExit(String(p.terminalId ?? ""));
+      case "terminal/kill":
+        return this.terminalBridge.kill(String(p.terminalId ?? ""), "agent");
+      case "terminal/release":
+        return this.terminalBridge.release(String(p.terminalId ?? ""));
+      default:
+        throw Object.assign(new Error(`unsupported terminal method ${method}`), {
+          code: -32601,
+        });
+    }
+  }
+
+  private async handlePermissionRequest(params: unknown): Promise<unknown> {
+    const p = params as {
+      toolCall?: {
+        toolCallId?: string;
+        title?: string;
+        kind?: ToolKind;
+      };
+      options?: Array<{
+        optionId: string;
+        name: string;
+        kind: "allow_once" | "allow_always" | "reject_once" | "reject_always";
+      }>;
+    };
+
+    const options = p.options ?? [
+      { optionId: "allow-once", name: "Allow once", kind: "allow_once" as const },
+      { optionId: "reject-once", name: "Reject", kind: "reject_once" as const },
+    ];
+    this.permissionSeq += 1;
+    const requestId = `perm-${this.permissionSeq}`;
+    const toolCallId = p.toolCall?.toolCallId ?? "unknown";
+    const kind = p.toolCall?.kind;
+    const title = p.toolCall?.title;
+
+    this.emit({
+      type: "approval.requested",
+      sessionId: this.sessionId || "pending",
+      turnId: this.openTurnId ?? undefined,
+      payload: {
+        requestId,
+        toolCallId,
+        title,
+        kind,
+        options,
+        preview: params,
+      },
+    });
+
+    // YOLO auto-allows normal in-project commands/edits once (still audited).
+    if (this.yoloEnabled || this.snapshot?.yoloEnabled) {
+      const allow =
+        options.find((o) => o.kind === "allow_once") ??
+        options.find((o) => o.kind === "allow_always");
+      if (allow) {
+        this.emit({
+          type: "approval.resolved",
+          sessionId: this.sessionId || "pending",
+          turnId: this.openTurnId ?? undefined,
+          payload: {
+            requestId,
+            outcome: { outcome: "selected", optionId: allow.optionId },
+            source: "yolo",
+          },
+        });
+        return {
+          outcome: { outcome: "selected", optionId: allow.optionId },
+        };
+      }
+    }
+
+    // Wait for the user via respondToApproval — keeps conversation state intact.
+    return new Promise((resolve) => {
+      this.permissionWaiters.set(requestId, { resolve });
     });
   }
 

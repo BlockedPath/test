@@ -408,7 +408,7 @@ body {
 
 .workspace {
   display: grid;
-  grid-template-rows: auto auto auto auto auto 1fr auto;
+  grid-template-rows: auto auto auto auto auto auto auto 1fr auto;
   height: 100vh;
   max-width: 920px;
   margin: 0 auto;
@@ -596,6 +596,121 @@ body {
 #usage-panel {
   border-color: #3a3a2a;
   background: #18160f;
+}
+
+.approval-panel {
+  margin: 0.5rem 1.25rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.approval-panel.hidden {
+  display: none;
+}
+
+.approval-card {
+  border: 1px solid #a17a3b;
+  border-radius: 8px;
+  background: #1c1810;
+  padding: 0.65rem 0.85rem;
+}
+
+.approval-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #ffd79a;
+  margin-bottom: 0.25rem;
+}
+
+.approval-detail {
+  margin: 0 0 0.55rem;
+  color: #e8eaed;
+  font-size: 0.9rem;
+}
+
+.approval-actions {
+  display: flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.activity-panel {
+  margin: 0.5rem 1.25rem 0;
+  border: 1px solid #2a4055;
+  border-radius: 8px;
+  background: #10161e;
+  padding: 0.55rem 0.75rem 0.7rem;
+  max-height: 14rem;
+  overflow: auto;
+}
+
+.activity-panel.hidden {
+  display: none;
+}
+
+.activity-panel-title {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #8b93a7;
+  margin-bottom: 0.45rem;
+}
+
+.activity-command {
+  border: 1px solid #243246;
+  border-radius: 6px;
+  padding: 0.5rem 0.6rem;
+  margin-bottom: 0.45rem;
+  background: #0e131a;
+  font-size: 0.82rem;
+}
+
+.activity-command.failed {
+  border-color: #6b2f2f;
+  background: #1a1214;
+}
+
+.activity-command:last-child {
+  margin-bottom: 0;
+}
+
+.activity-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #7f8aa3;
+  margin-right: 0.35rem;
+}
+
+.activity-cmd {
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  color: #c5e0ff;
+  word-break: break-all;
+}
+
+.activity-command-scope,
+.activity-command-exit {
+  margin-top: 0.2rem;
+  color: #a8b0c4;
+}
+
+.activity-command-output {
+  margin: 0.4rem 0 0;
+  padding: 0.45rem 0.5rem;
+  border-radius: 4px;
+  background: #0a0d12;
+  color: #d0d6e4;
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 0.78rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 6rem;
+  overflow: auto;
 }
 
 .plan-list,
