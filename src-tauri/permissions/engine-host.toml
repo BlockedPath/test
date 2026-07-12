@@ -1,0 +1,22 @@
+[[permission]]
+identifier = "engine-host"
+description = "Native Grok CLI supervision, discovery helpers, and project filesystem I/O for the desktop shell."
+commands.allow = [
+  "host_env",
+  "host_path_exists",
+  "host_path_is_dir",
+  "host_path_any_exists",
+  "host_resolve_path",
+  "host_which",
+  "host_exec",
+  "host_list_dir",
+  "host_read_file",
+  "host_write_text",
+  "host_delete_file",
+  "host_move_file",
+  "host_taskkill",
+  "engine_spawn",
+  "engine_write",
+  "engine_kill",
+  "terminal_spawn"
+]

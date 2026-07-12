@@ -48,6 +48,18 @@ export class ProjectService {
     return this.recent.current();
   }
 
+  /** Drop recent entries that fail `keep` (e.g. Unix demo paths on Windows). */
+  pruneRecent(keep: (path: string) => boolean): void {
+    if (this.recent.prune) {
+      this.recent.prune(keep);
+      return;
+    }
+    // Fallback for stores without prune: clear if current is invalid.
+    const items = this.recent.list().filter(keep);
+    this.recent.clear();
+    for (const p of items.reverse()) this.recent.remember(p);
+  }
+
   trustSummary() {
     return {
       title: TRUST_SUMMARY_TITLE,

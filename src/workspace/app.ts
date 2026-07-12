@@ -311,14 +311,35 @@ export class ConversationApp {
     this.unsubSnapshot =
       this.engine.subscribeSnapshot?.((snap) => this.render(snap)) ?? null;
 
-    await this.engine.start({ projectPath: this.projectPath });
-    await this.engine.createSession({ cwd: this.projectPath });
+    try {
+      await this.engine.start({ projectPath: this.projectPath });
+      await this.engine.createSession({ cwd: this.projectPath });
 
-    const snap = this.engine.getSnapshot();
-    if (snap) this.render(snap);
+      const snap = this.engine.getSnapshot();
+      if (snap) this.render(snap);
 
-    if (this.autoDemoPrompt) {
-      await this.engine.sendPrompt(this.autoDemoPrompt);
+      if (this.autoDemoPrompt) {
+        await this.engine.sendPrompt(this.autoDemoPrompt);
+      }
+    } catch (err) {
+      // Keep the workspace shell visible with recovery UI; do not rethrow
+      // into the Project shell (which would leave a half-mounted layout).
+      const snap = this.engine.getSnapshot();
+      if (snap) {
+        this.render(snap);
+      } else {
+        const message =
+          err instanceof Error ? err.message : String(err);
+        this.errorRecoveryEl.classList.remove("hidden");
+        this.errorDetailEl.textContent = message;
+        this.statusEl.textContent = "faulted";
+        this.statusEl.dataset.state = "faulted";
+        this.engineHealthEl.textContent = "engine failed";
+        this.sendBtn.disabled = true;
+        this.inputEl.disabled = true;
+        this.stopBtn.disabled = true;
+        this.yoloBtn.disabled = true;
+      }
     }
   }
 

@@ -24,6 +24,10 @@ export type ProjectShellOptions = {
   autoDemoPrompt?: string | null;
   /** Applies approved multi-file edits (issue #14). */
   fileWriteHost?: FileWriteHost;
+  /** Initial path draft for the open-project field. */
+  defaultPath?: string;
+  /** When true, hide demo-only recovery actions (native / Tauri). */
+  realHost?: boolean;
 };
 
 function escapeHtml(value: string): string {
@@ -48,6 +52,23 @@ function relativePath(root: string, full: string): string {
 }
 
 /**
+ * Native Windows desktop paths (drive letter or UNC). Rejects Unix demo
+ * paths like /tmp/... that leak in from browser localStorage.
+ */
+function isUsableNativePath(path: string): boolean {
+  const p = path.trim();
+  if (!p) return false;
+  if (/^\/tmp\b/i.test(p) || p.includes("grok-gui-demo-project")) return false;
+  // Windows drive path: C:\... or C:/...
+  if (/^[a-zA-Z]:[\\/]/.test(p)) return true;
+  // UNC: \\server\share
+  if (/^\\\\[^\\]+\\/.test(p)) return true;
+  // Relative is ok only if it does not look like a Unix absolute path.
+  if (p.startsWith("/")) return false;
+  return true;
+}
+
+/**
  * Owns first-use Project phases and local context chrome.
  * Delegates the live conversation surface to ConversationApp.
  */
@@ -60,10 +81,11 @@ export class ProjectShell {
 
   private phase: ProjectPhase = "choose";
   private projectError: ProjectError | null = null;
-  private pathDraft = DEMO_PROJECT_PATH;
+  private pathDraft: string;
   private selectedFilePath: string | null = null;
   private fileView: ReadFileResult | null = null;
   private fileViewError: string | null = null;
+  private realHost: boolean;
 
   private engine: AgentEnginePort | null = null;
   private conversation: ConversationApp | null = null;
@@ -75,6 +97,10 @@ export class ProjectShell {
     this.createEngine = options.createEngine;
     this.autoDemoPrompt = options.autoDemoPrompt ?? null;
     this.fileWriteHost = options.fileWriteHost ?? null;
+    this.realHost = options.realHost ?? false;
+    this.pathDraft =
+      options.defaultPath ??
+      (this.realHost ? "" : DEMO_PROJECT_PATH);
   }
 
   async mount(): Promise<void> {
@@ -83,8 +109,15 @@ export class ProjectShell {
     this.shellEl.addEventListener("click", (e) => void this.onClick(e));
     this.shellEl.addEventListener("keydown", (e) => void this.onKeydown(e));
 
+    if (this.realHost) {
+      // Drop Unix demo paths left over from browser/Vite sessions.
+      this.projects.pruneRecent((p) => isUsableNativePath(p));
+    }
+
     const recent = this.projects.currentRecent();
-    if (recent) this.pathDraft = recent;
+    if (recent && (!this.realHost || isUsableNativePath(recent))) {
+      this.pathDraft = recent;
+    }
 
     this.renderPhase();
   }
@@ -113,7 +146,9 @@ export class ProjectShell {
 
   private renderChoose(): void {
     this.teardownConversation();
-    const recent = this.projects.listRecent();
+    const recent = this.projects
+      .listRecent()
+      .filter((p) => !this.realHost || isUsableNativePath(p));
     const err = this.projectError;
 
     this.shellEl.innerHTML = `
@@ -142,9 +177,11 @@ export class ProjectShell {
             </button>
           </div>
           <p class="hint">
-            Web shell uses an in-memory demo host. Open
-            <code>${escapeHtml(DEMO_PROJECT_PATH)}</code>
-            for the sample tree, or wire a Node/Tauri host for real disks.
+            ${
+              this.realHost
+                ? "Enter an absolute folder path on this machine (for example <code>C:\\\\Users\\\\you\\\\projects\\\\app</code>). The official Grok CLI will run against that Project."
+                : `Web shell uses an in-memory demo host. Open <code>${escapeHtml(DEMO_PROJECT_PATH)}</code> for the sample tree, or wire a Node/Tauri host for real disks.`
+            }
           </p>
         </section>
 
@@ -168,9 +205,13 @@ export class ProjectShell {
                 </ul>`
           }
           <div class="row-actions">
-            <button type="button" class="btn secondary" data-action="open-demo" data-testid="open-demo">
+            ${
+              this.realHost
+                ? ""
+                : `<button type="button" class="btn secondary" data-action="open-demo" data-testid="open-demo">
               Open demo project
-            </button>
+            </button>`
+            }
             <button
               type="button"
               class="btn ghost"

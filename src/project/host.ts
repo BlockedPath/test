@@ -42,4 +42,9 @@ export type RecentProjectStore = {
   clear(): void;
   /** Most recently remembered project path, if any. */
   current(): string | null;
+  /**
+   * Keep only paths that pass `keep`. Used to drop browser demo paths
+   * when running the native desktop host.
+   */
+  prune?(keep: (path: string) => boolean): void;
 };

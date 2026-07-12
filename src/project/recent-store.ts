@@ -25,6 +25,9 @@ export function createMemoryRecentStore(
       items = [];
     },
     current: () => items[0] ?? null,
+    prune(keep: (path: string) => boolean) {
+      items = items.filter(keep);
+    },
   };
 }
 
@@ -47,6 +50,10 @@ export function createLocalStorageRecentStore(
       save(storage, key, []);
     },
     current: () => memory.current(),
+    prune(keep: (path: string) => boolean) {
+      memory.prune?.(keep);
+      save(storage, key, memory.list());
+    },
   };
 }
 
