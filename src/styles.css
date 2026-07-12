@@ -1115,6 +1115,21 @@ body {
   color: #ffd79a;
 }
 
+.yolo-banner {
+  margin: 0;
+  padding: 0.45rem 1rem;
+  background: #3a2a12;
+  border-bottom: 1px solid #a17a3b;
+  color: #ffd79a;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+.yolo-banner.hidden {
+  display: none;
+}
+
 .boot-error {
   margin: 1rem;
   color: #ffb4b4;

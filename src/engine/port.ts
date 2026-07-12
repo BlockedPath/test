@@ -52,8 +52,15 @@ export interface AgentEnginePort {
    */
   updateFileChangeBatch?(batch: FileChangeBatch): Promise<void>;
 
-  /** Toggle YOLO policy for the current Session (GUI-side flag). */
-  setYolo(enabled: boolean): Promise<void>;
+  /**
+   * Toggle YOLO policy for the current Session (GUI-side flag).
+   * Enabling requires `{ acknowledgeWarning: true }` after the user confirms
+   * the YOLO risk warning. Disabling never requires acknowledgment.
+   */
+  setYolo(
+    enabled: boolean,
+    options?: { acknowledgeWarning?: boolean },
+  ): Promise<void>;
 
   /** Cooperative cancellation of the open turn. */
   cancel(): Promise<void>;

@@ -75,7 +75,8 @@ describe("FakeAgentEngine (AgentEnginePort seam)", () => {
 
     // Drive approval via reducer by injecting through public send path is limited;
     // setYolo and respondToApproval must exist and update snapshot when events fire.
-    await engine.setYolo(true);
+    await expect(engine.setYolo(true)).rejects.toThrow(/warning/i);
+    await engine.setYolo(true, { acknowledgeWarning: true });
     expect(engine.getSnapshot()?.yoloEnabled).toBe(true);
 
     // Synthesize an approval by using internal emit path via respond after manual event:

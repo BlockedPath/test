@@ -38,6 +38,40 @@ function memoryHost(options?: {
 }
 
 describe("applySelectedChanges", () => {
+  it("hard-blocks raw secrets and elevated paths when safety is provided", async () => {
+    const batch = normalizeFileChangeBatch({
+      batchId: "safe-1",
+      title: "Unsafe",
+      proposals: [
+        {
+          path: "src/ok.ts",
+          newText: "export const ok = true;\n",
+        },
+        {
+          path: "src/leak.ts",
+          newText: 'export const k = "xai-abcdef1234567890";\n',
+        },
+        {
+          path: "/tmp/outside.ts",
+          newText: "outside\n",
+        },
+      ],
+    });
+    const host = memoryHost();
+    const result = await applySelectedChanges(batch, host, {
+      projectPath: "/home/user/proj",
+    });
+    const byPath = Object.fromEntries(
+      result.batch.changes.map((c) => [c.path, c]),
+    );
+    expect(byPath["src/ok.ts"]!.status).toBe("applied");
+    expect(byPath["src/leak.ts"]!.status).toBe("failed");
+    expect(byPath["src/leak.ts"]!.errorMessage).toMatch(/hard-block|secret|credential/i);
+    expect(byPath["/tmp/outside.ts"]!.status).toBe("failed");
+    expect(byPath["/tmp/outside.ts"]!.errorMessage).toMatch(/outside|elevated/i);
+    expect(host.writes.map((w) => w.path)).toEqual(["src/ok.ts"]);
+  });
+
   it("writes only selected files and marks others skipped", async () => {
     let batch = normalizeFileChangeBatch({
       batchId: "b1",

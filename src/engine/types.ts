@@ -107,7 +107,7 @@ export type ApprovalRecord = {
   preview?: unknown;
   resolved?: {
     outcome: ApprovalOutcome;
-    source: "user" | "yolo" | "policy" | "cancel";
+    source: "user" | "yolo" | "policy" | "allowlist" | "cancel";
   };
 };
 
@@ -288,7 +288,7 @@ export type GuiEvent =
       payload: {
         requestId: string;
         outcome: ApprovalOutcome;
-        source: "user" | "yolo" | "policy" | "cancel";
+        source: "user" | "yolo" | "policy" | "allowlist" | "cancel";
       };
     })
   | (GuiEventBase & {

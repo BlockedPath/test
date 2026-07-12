@@ -368,4 +368,35 @@ describe("ConversationApp (workspace UI × FakeAgentEngine)", () => {
       /fail/i,
     );
   });
+
+  it("YOLO stays off until warning is confirmed and then shows a persistent banner", async () => {
+    const engine = new FakeAgentEngine({ streamDelayMs: 0 });
+    await mount(engine);
+
+    const banner = root.querySelector('[data-testid="yolo-banner"]') as HTMLElement;
+    const toggle = root.querySelector(
+      '[data-testid="yolo-toggle"]',
+    ) as HTMLButtonElement;
+    expect(banner.classList.contains("hidden")).toBe(true);
+    expect(textOf(toggle)).toMatch(/YOLO off/i);
+
+    // Decline warning → still off
+    const originalConfirm = window.confirm;
+    window.confirm = () => false;
+    toggle.click();
+    await flush(0);
+    expect(engine.getSnapshot()?.yoloEnabled).toBe(false);
+    expect(banner.classList.contains("hidden")).toBe(true);
+
+    // Accept warning → on + banner
+    window.confirm = () => true;
+    toggle.click();
+    await flush(0);
+    window.confirm = originalConfirm;
+
+    expect(engine.getSnapshot()?.yoloEnabled).toBe(true);
+    expect(banner.classList.contains("hidden")).toBe(false);
+    expect(textOf(banner)).toMatch(/YOLO/i);
+    expect(textOf(toggle)).toMatch(/YOLO on/i);
+  });
 });

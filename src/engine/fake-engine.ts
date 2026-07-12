@@ -15,6 +15,15 @@ import type {
   SessionSnapshot,
   StartOptions,
 } from "./types";
+import {
+  actionFromPermission,
+  applyYoloChange,
+  createSessionSafetyState,
+  decideAction,
+  rememberAllowSimilar,
+  resetSessionSafety,
+  type SessionSafetyState,
+} from "../safety";
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -87,6 +96,7 @@ export class FakeAgentEngine implements AgentEnginePort {
     { resolve: () => void; reject: (err: Error) => void }
   >();
   private permissionSeq = 0;
+  private safety: SessionSafetyState = createSessionSafetyState("");
 
   constructor(options: FakeEngineOptions = {}) {
     this.streamDelayMs = options.streamDelayMs ?? 40;
@@ -95,6 +105,11 @@ export class FakeAgentEngine implements AgentEnginePort {
     this.proposeEditsOnPrompt = options.proposeEditsOnPrompt ?? false;
     this.commandTurn = options.commandTurn ?? false;
     this.commandFail = options.commandFail ?? false;
+  }
+
+  /** Test access to Session safety state. */
+  getSafetyState(): SessionSafetyState {
+    return this.safety;
   }
 
   private nextEventId(): string {
@@ -166,6 +181,7 @@ export class FakeAgentEngine implements AgentEnginePort {
   async start(options: StartOptions): Promise<void> {
     this.assertNotDisposed();
     this.projectPath = options.projectPath;
+    this.safety = createSessionSafetyState(options.projectPath);
     this.started = true;
     this.snapshot = createEmptySnapshot({
       sessionId: "pending",
@@ -223,10 +239,15 @@ export class FakeAgentEngine implements AgentEnginePort {
   /** Fresh session projection, preserving engine/protocol version from start. */
   private resetSnapshot(sessionId: string, projectPath: string): SessionSnapshot {
     const prev = this.snapshot;
+    this.projectPath = projectPath;
+    this.safety = resetSessionSafety(
+      createSessionSafetyState(projectPath),
+    );
     return {
       ...createEmptySnapshot({ sessionId, projectPath }),
       engineVersion: prev?.engineVersion,
       protocolVersion: prev?.protocolVersion,
+      yoloEnabled: false,
     };
   }
 
@@ -453,24 +474,84 @@ export class FakeAgentEngine implements AgentEnginePort {
       },
     });
 
-    this.emit({
-      type: "approval.requested",
-      sessionId: this.sessionId,
-      turnId,
-      payload: {
-        requestId,
-        toolCallId,
-        title: "Run project-local command: echo SPIKE_TERM_OK",
-        kind: "execute",
-        options: [
-          { optionId: "allow-once", name: "Allow once", kind: "allow_once" },
-          { optionId: "reject-once", name: "Reject", kind: "reject_once" },
-        ],
-        preview: { command: "echo SPIKE_TERM_OK", cwd: this.projectPath },
-      },
+    const preview = {
+      command: "echo",
+      args: ["SPIKE_TERM_OK"],
+      cwd: this.projectPath,
+    };
+    const action = actionFromPermission({
+      kind: "execute",
+      title: "Run project-local command: echo SPIKE_TERM_OK",
+      preview,
+      projectPath: this.projectPath,
     });
+    // Keep safety yolo flag in sync with snapshot for policy decisions.
+    this.safety = {
+      ...this.safety,
+      yoloEnabled: this.snapshot?.yoloEnabled ?? this.safety.yoloEnabled,
+      projectPath: this.projectPath,
+    };
+    const policy = decideAction(this.safety, action);
 
-    if (this.snapshot?.yoloEnabled) {
+    const options = [
+      { optionId: "allow-once", name: "Allow once", kind: "allow_once" as const },
+      {
+        optionId: "allow-similar",
+        name: "Allow similar for this Session",
+        kind: "allow_always" as const,
+      },
+      { optionId: "reject-once", name: "Reject", kind: "reject_once" as const },
+    ];
+
+    if (policy.decision === "hard_block") {
+      this.emit({
+        type: "approval.requested",
+        sessionId: this.sessionId,
+        turnId,
+        payload: {
+          requestId,
+          toolCallId,
+          title: `Hard-blocked: ${policy.reason}`,
+          kind: "execute",
+          options: [
+            { optionId: "reject-once", name: "Dismiss", kind: "reject_once" },
+          ],
+          preview,
+        },
+      });
+      this.emit({
+        type: "approval.resolved",
+        sessionId: this.sessionId,
+        turnId,
+        payload: {
+          requestId,
+          outcome: { outcome: "cancelled" },
+          source: "policy",
+        },
+      });
+      this.emit({
+        type: "tool.finished",
+        sessionId: this.sessionId,
+        turnId,
+        payload: { toolCallId, status: "failed" },
+      });
+      return;
+    }
+
+    if (policy.decision === "allow") {
+      this.emit({
+        type: "approval.requested",
+        sessionId: this.sessionId,
+        turnId,
+        payload: {
+          requestId,
+          toolCallId,
+          title: "Run project-local command: echo SPIKE_TERM_OK",
+          kind: "execute",
+          options,
+          preview,
+        },
+      });
       this.emit({
         type: "approval.resolved",
         sessionId: this.sessionId,
@@ -478,10 +559,29 @@ export class FakeAgentEngine implements AgentEnginePort {
         payload: {
           requestId,
           outcome: { outcome: "selected", optionId: "allow-once" },
-          source: "yolo",
+          source: policy.source,
         },
       });
     } else {
+      this.emit({
+        type: "approval.requested",
+        sessionId: this.sessionId,
+        turnId,
+        payload: {
+          requestId,
+          toolCallId,
+          title:
+            policy.tier === "elevated"
+              ? `Elevated: ${policy.reason}`
+              : "Run project-local command: echo SPIKE_TERM_OK",
+          kind: "execute",
+          options:
+            policy.allowSimilarEligible
+              ? options
+              : options.filter((o) => o.optionId !== "allow-similar"),
+          preview,
+        },
+      });
       const allowed = await new Promise<boolean>((resolve) => {
         this.permissionWaiters.set(requestId, {
           resolve: () => resolve(true),
@@ -581,6 +681,17 @@ export class FakeAgentEngine implements AgentEnginePort {
     decision: ApprovalOutcome,
   ): Promise<void> {
     this.assertSession();
+    if (
+      decision.outcome === "selected" &&
+      (decision.optionId === "allow-similar" ||
+        decision.optionId === "allow-always")
+    ) {
+      // Narrow Session allowlist for the demo project-local command.
+      const remembered = rememberAllowSimilar(this.safety, "echo", [
+        "SPIKE_TERM_OK",
+      ]);
+      this.safety = remembered.state;
+    }
     this.emit({
       type: "approval.resolved",
       sessionId: this.sessionId,
@@ -598,7 +709,8 @@ export class FakeAgentEngine implements AgentEnginePort {
         decision.outcome === "selected" &&
         (decision.optionId.includes("allow") ||
           decision.optionId === "allow-once" ||
-          decision.optionId === "allow-always");
+          decision.optionId === "allow-always" ||
+          decision.optionId === "allow-similar");
       if (allowed) waiter.resolve();
       else waiter.reject(new Error("rejected"));
     }
@@ -691,12 +803,23 @@ export class FakeAgentEngine implements AgentEnginePort {
     });
   }
 
-  async setYolo(enabled: boolean): Promise<void> {
+  async setYolo(
+    enabled: boolean,
+    options?: { acknowledgeWarning?: boolean },
+  ): Promise<void> {
     this.assertSession();
+    const { state, result } = applyYoloChange(this.safety, {
+      enabled,
+      acknowledgeWarning: options?.acknowledgeWarning,
+    });
+    if (!result.ok) {
+      throw new Error(result.reason);
+    }
+    this.safety = state;
     this.emit({
       type: "yolo.changed",
       sessionId: this.sessionId,
-      payload: { enabled },
+      payload: { enabled: state.yoloEnabled },
     });
   }
 
@@ -731,6 +854,16 @@ export class FakeAgentEngine implements AgentEnginePort {
     const turnId = this.openTurnId ?? undefined;
     this.cancelRequested = true;
     this.clearTimers();
+    // Emergency Stop clears Session safety (YOLO + allowlists) for recovery.
+    this.safety = resetSessionSafety(this.safety);
+    if (this.snapshot?.yoloEnabled) {
+      this.emit({
+        type: "yolo.changed",
+        sessionId: this.sessionId || "pending",
+        turnId,
+        payload: { enabled: false },
+      });
+    }
 
     this.emit({
       type: "session.emergency_stop",

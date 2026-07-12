@@ -1,12 +1,25 @@
 import type { FileChangeBatch, FileChangeRecord, FileWriteHost } from "./types";
+import {
+  createSessionSafetyState,
+  decideAction,
+  type SessionSafetyState,
+} from "../safety";
 
 export type ApplyResult = {
   batch: FileChangeBatch;
 };
 
+export type ApplySafetyOptions = {
+  /** When set, enforce Session safety policy before writing. */
+  safety?: SessionSafetyState;
+  /** Convenience: build a safety state from Project path (YOLO off). */
+  projectPath?: string;
+};
+
 async function applyOne(
   change: FileChangeRecord,
   host: FileWriteHost,
+  safety: SessionSafetyState | null,
 ): Promise<FileChangeRecord> {
   if (change.malformed || !change.selected || change.status !== "pending") {
     return {
@@ -14,6 +27,33 @@ async function applyOne(
       status: change.status === "pending" ? "skipped" : change.status,
       selected: false,
     };
+  }
+
+  if (safety) {
+    const decision = decideAction(safety, {
+      kind: change.kind === "create" ? "create" : change.kind,
+      path: change.path,
+      content: change.diff?.newText,
+      destinationPath: change.diff?.destinationPath,
+    });
+    if (decision.decision === "hard_block") {
+      return {
+        ...change,
+        status: "failed",
+        selected: false,
+        errorMessage: decision.reason,
+      };
+    }
+    // Elevated outside-project / credential paths must not be applied via the
+    // normal multi-file batch without a separate elevated decision.
+    if (decision.decision === "prompt" && decision.tier === "elevated") {
+      return {
+        ...change,
+        status: "failed",
+        selected: false,
+        errorMessage: decision.reason,
+      };
+    }
   }
 
   try {
@@ -82,18 +122,26 @@ async function applyOne(
  * Apply only selected, well-formed pending changes.
  * Unselected pending files become skipped; failures are marked failed.
  * Already-resolved batches are returned unchanged.
+ * Never silently broadens selection; optional safety blocks elevated/hard paths.
  */
 export async function applySelectedChanges(
   batch: FileChangeBatch,
   host: FileWriteHost,
+  options?: ApplySafetyOptions,
 ): Promise<ApplyResult> {
   if (batch.status !== "pending") {
     return { batch };
   }
 
+  const safety =
+    options?.safety ??
+    (options?.projectPath
+      ? createSessionSafetyState(options.projectPath)
+      : null);
+
   const changes: FileChangeRecord[] = [];
   for (const change of batch.changes) {
-    changes.push(await applyOne(change, host));
+    changes.push(await applyOne(change, host, safety));
   }
 
   return {
