@@ -10,6 +10,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:engine-smoke": "tsx scripts/windows-engine-smoke.mjs",
+    "test:packaging-smoke": "tsx scripts/windows-clean-profile-smoke.mjs",
     "tauri": "tauri",
     "typecheck": "tsc --noEmit"
   },
