@@ -232,6 +232,83 @@ describe("ConversationApp (workspace UI × FakeAgentEngine)", () => {
     ).toBe(true);
   });
 
+  it("Emergency Stop surfaces incomplete cleanup and offers recovery without claiming rollback", async () => {
+    const engine = new FakeAgentEngine({
+      streamDelayMs: 80,
+      richTurn: false,
+      emergencyCleanupStatus: "orphans_possible",
+      emergencyOrphanPids: [4242],
+    });
+    await mount(engine);
+
+    const input = root.querySelector(
+      '[data-testid="prompt-input"]',
+    ) as HTMLTextAreaElement;
+    const send = root.querySelector('[data-testid="send"]') as HTMLButtonElement;
+    const emergency = root.querySelector(
+      '[data-testid="emergency-stop"]',
+    ) as HTMLButtonElement;
+
+    input.value = "hang me";
+    send.click();
+    await waitUntil(
+      () => engine.getSnapshot()?.state === "running",
+      { label: "running before emergency" },
+    );
+    emergency.click();
+    await waitUntil(
+      () => engine.getSnapshot()?.state === "faulted",
+      { label: "faulted after emergency" },
+    );
+
+    const recovery = root.querySelector('[data-testid="error-recovery"]');
+    expect(recovery).toBeTruthy();
+    expect(recovery?.classList.contains("hidden")).toBe(false);
+    expect(textOf(recovery)).toMatch(/emergency_stop|orphan|4242|cleanup/i);
+    expect(textOf(recovery)).toMatch(/not rolled back|Nothing was rolled back/i);
+    expect(root.querySelector('[data-testid="recover-retry-engine"]')).toBeTruthy();
+    expect(root.querySelector('[data-testid="recover-reset-session"]')).toBeTruthy();
+    expect(root.querySelector('[data-testid="recover-cli-fallback"]')).toBeTruthy();
+
+    // YOLO must be off after Emergency Stop recovery
+    await engine.setYolo(true, { acknowledgeWarning: true }).catch(() => undefined);
+    // engine may be faulted; Reset Session first
+    (
+      root.querySelector(
+        '[data-testid="recover-reset-session"]',
+      ) as HTMLButtonElement
+    ).click();
+    await waitUntil(
+      () => engine.getSnapshot()?.state === "idle",
+      { label: "idle after reset" },
+    );
+    expect(engine.getSnapshot()?.yoloEnabled).toBe(false);
+    expect(textOf(root.querySelector('[data-testid="session-status"]'))).toMatch(
+      /idle/i,
+    );
+  });
+
+  it("CLI fallback recovery control documents the terminal path", async () => {
+    const engine = new FakeAgentEngine({ streamDelayMs: 0, faultOnPrompt: true });
+    await mount(engine);
+    const send = root.querySelector('[data-testid="send"]') as HTMLButtonElement;
+    (
+      root.querySelector('[data-testid="prompt-input"]') as HTMLTextAreaElement
+    ).value = "fault";
+    send.click();
+    await flush(20);
+
+    (
+      root.querySelector(
+        '[data-testid="recover-cli-fallback"]',
+      ) as HTMLButtonElement
+    ).click();
+    await flush(5);
+    expect(textOf(root.querySelector('[data-testid="error-recovery"]'))).toMatch(
+      /grok|CLI|terminal/i,
+    );
+  });
+
   it("submits composer text through the engine and clears the input", async () => {
     const engine = new FakeAgentEngine({ streamDelayMs: 0, richTurn: false });
     await mount(engine);

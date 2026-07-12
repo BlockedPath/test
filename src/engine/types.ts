@@ -111,6 +111,13 @@ export type ApprovalRecord = {
   };
 };
 
+/** Best-effort process-tree cleanup after Emergency Stop. */
+export type CleanupReport = {
+  status: "clean" | "incomplete" | "orphans_possible";
+  detail?: string;
+  orphanPids?: number[];
+};
+
 export type SessionSnapshot = {
   sessionId: string;
   projectPath: string;
@@ -134,6 +141,11 @@ export type SessionSnapshot = {
     cost?: { amount: number; currency: string };
   };
   lastError?: { code: string; message: string; recoverable: boolean };
+  /**
+   * Process-tree cleanup outcome after Emergency Stop.
+   * Incomplete cleanup / possible orphans are surfaced; never a silent rollback.
+   */
+  cleanup?: CleanupReport;
   engineVersion?: string;
   protocolVersion?: number;
 };
@@ -238,6 +250,9 @@ export type GuiEvent =
       payload: {
         phase: "cancel" | "kill" | "cleanup";
         detail?: string;
+        /** Present on cleanup phase when known. */
+        cleanupStatus?: "clean" | "incomplete" | "orphans_possible";
+        orphanPids?: number[];
       };
     })
   | (GuiEventBase & {

@@ -47,6 +47,11 @@ import {
   resetSessionSafety,
   type SessionSafetyState,
 } from "../safety";
+import {
+  createNodeProcessCleanupHost,
+  killProcessTree,
+  type ProcessCleanupHost,
+} from "./process-cleanup";
 
 export type GrokAcpEngineDeps = {
   discovery: DiscoveryHost;
@@ -59,6 +64,11 @@ export type GrokAcpEngineDeps = {
   requestTimeoutMs?: number;
   /** Injectable terminal process spawner (tests). */
   spawnTerminal?: SpawnTerminalProcess;
+  /**
+   * Process-tree cleanup host for Emergency Stop.
+   * Defaults to a Node host (taskkill on Windows).
+   */
+  processCleanup?: ProcessCleanupHost;
 };
 
 function nowIso(): string {
@@ -107,9 +117,12 @@ export class GrokAcpEngine implements AgentEnginePort {
   >();
   private permissionSeq = 0;
   private safety: SessionSafetyState = createSessionSafetyState("");
+  private readonly processCleanup: ProcessCleanupHost;
 
   constructor(private readonly deps: GrokAcpEngineDeps) {
     this.requestTimeoutMs = deps.requestTimeoutMs ?? 60_000;
+    this.processCleanup =
+      deps.processCleanup ?? createNodeProcessCleanupHost();
   }
 
   /** Test access to Session safety state. */
@@ -541,7 +554,11 @@ export class GrokAcpEngine implements AgentEnginePort {
   async resumeSession(sessionId: string): Promise<void> {
     this.assertStarted();
     // Full loadSession support is CLI-dependent; emit resumed with best effort.
+    // After Emergency Stop (or any resume), YOLO and allowlists start off.
     this.sessionId = sessionId;
+    this.safety = resetSessionSafety(
+      createSessionSafetyState(this.projectPath),
+    );
     this.snapshot = {
       ...createEmptySnapshot({
         sessionId,
@@ -549,6 +566,7 @@ export class GrokAcpEngine implements AgentEnginePort {
       }),
       engineVersion: this.engineVersion,
       protocolVersion: this.protocolVersion,
+      yoloEnabled: false,
     };
     this.emit({
       type: "session.resumed",
@@ -709,18 +727,20 @@ export class GrokAcpEngine implements AgentEnginePort {
   async emergencyStop(): Promise<void> {
     this.assertStarted();
     const turnId = this.openTurnId ?? undefined;
+    const sid = this.sessionId || "pending";
+    // Emergency Stop always disables YOLO for any new/resumed Session.
     this.safety = resetSessionSafety(this.safety);
     if (this.snapshot?.yoloEnabled) {
       this.emit({
         type: "yolo.changed",
-        sessionId: this.sessionId || "pending",
+        sessionId: sid,
         turnId,
         payload: { enabled: false },
       });
     }
     this.emit({
       type: "session.emergency_stop",
-      sessionId: this.sessionId || "pending",
+      sessionId: sid,
       turnId,
       payload: { phase: "cancel" },
     });
@@ -738,18 +758,60 @@ export class GrokAcpEngine implements AgentEnginePort {
 
     this.emit({
       type: "session.emergency_stop",
-      sessionId: this.sessionId || "pending",
+      sessionId: sid,
       turnId,
-      payload: { phase: "kill", detail: "terminating engine process" },
+      payload: {
+        phase: "kill",
+        detail: "terminating engine process tree",
+      },
     });
 
+    const rootPid = this.proc?.pid ?? null;
+    // Direct signal first, then best-effort tree kill (Windows taskkill /T /F).
     this.proc?.kill("SIGTERM");
+    const cleanup = await killProcessTree(rootPid, this.processCleanup);
+
+    this.rpc?.close();
+    this.rpc = null;
+    this.proc = null;
+    this.terminalBridge = null;
+    // Process is gone — require a fresh start() before createSession.
+    this.started = false;
+    this.authenticated = false;
     this.openTurnId = null;
+
+    const cleanupDetail =
+      cleanup.status === "clean"
+        ? `${cleanup.detail} Nothing was rolled back on disk.`
+        : `${cleanup.detail} Nothing was rolled back on disk.`;
+
+    this.emit({
+      type: "session.emergency_stop",
+      sessionId: sid,
+      turnId,
+      payload: {
+        phase: "cleanup",
+        detail: cleanupDetail,
+        cleanupStatus: cleanup.status,
+        orphanPids:
+          cleanup.orphanPids.length > 0 ? cleanup.orphanPids : undefined,
+      },
+    });
+
+    this.emit({
+      type: "engine.exited",
+      sessionId: sid,
+      turnId,
+      payload: { exitCode: null, signal: "SIGKILL" },
+    });
 
     this.emitError(
       "emergency_stop",
-      "Emergency stop terminated the engine process",
-      false,
+      cleanup.status === "clean"
+        ? "Emergency stop terminated the engine process"
+        : `Emergency stop terminated the engine process (${cleanupDetail})`,
+      // Retry engine / Reset Session / CLI fallback remain available.
+      true,
     );
   }
 
