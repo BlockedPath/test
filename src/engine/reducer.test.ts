@@ -305,4 +305,51 @@ describe("session reducer lifecycle", () => {
     expect(snap.state).toBe("idle");
     expect(snap.turn?.stopReason).toBe("cancelled");
   });
+
+  it("appends thought chunks as thought-role messages distinct from assistant text", () => {
+    let snap = reduce(
+      createEmptySnapshot({ sessionId: "sess-1", projectPath: "/proj" }),
+      evt("session.created", { sessionId: "sess-1", cwd: "/proj" }),
+    );
+    snap = reduce(
+      snap,
+      evt(
+        "turn.started",
+        {
+          turnId: "turn-t",
+          prompt: [{ type: "text", text: "think" }],
+        },
+        { turnId: "turn-t" },
+      ),
+    );
+    snap = reduce(
+      snap,
+      evt(
+        "assistant.thought_chunk",
+        {
+          messageId: "thought-1",
+          chunk: { type: "text", text: "Considering the layout… " },
+        },
+        { turnId: "turn-t" },
+      ),
+    );
+    snap = reduce(
+      snap,
+      evt(
+        "assistant.message_chunk",
+        {
+          messageId: "asst-1",
+          chunk: { type: "text", text: "Final answer." },
+        },
+        { turnId: "turn-t" },
+      ),
+    );
+
+    const thought = snap.messages.find((m) => m.role === "thought");
+    const assistant = snap.messages.find((m) => m.role === "assistant");
+    expect(thought?.content).toEqual([
+      { type: "text", text: "Considering the layout… " },
+    ]);
+    expect(assistant?.content).toEqual([{ type: "text", text: "Final answer." }]);
+  });
 });

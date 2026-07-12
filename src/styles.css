@@ -32,7 +32,7 @@ body {
 
 .workspace {
   display: grid;
-  grid-template-rows: auto auto 1fr auto;
+  grid-template-rows: auto auto auto auto auto 1fr auto;
   height: 100vh;
   max-width: 920px;
   margin: 0 auto;
@@ -123,6 +123,165 @@ body {
   display: none;
 }
 
+.error-recovery {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+  margin: 0;
+  padding: 0.75rem 1.25rem;
+  background: #3a1c1c;
+  color: #ffc9c9;
+  border-bottom: 1px solid #6b2f2f;
+  font-size: 0.9rem;
+}
+
+.error-recovery.hidden {
+  display: none;
+}
+
+.error-recovery-body {
+  flex: 1 1 16rem;
+  min-width: 0;
+}
+
+.error-recovery-body strong {
+  display: block;
+  margin-bottom: 0.25rem;
+  color: #ffd0d0;
+}
+
+.error-detail {
+  margin: 0.15rem 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.error-hint {
+  margin: 0.35rem 0 0;
+  color: #d0a0a0;
+  font-size: 0.82rem;
+}
+
+.error-recovery-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.45rem;
+}
+
+.meta-panels {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 0.5rem;
+  padding: 0.55rem 1.25rem 0;
+}
+
+.meta-panel {
+  border: 1px solid #2a3347;
+  border-radius: 8px;
+  background: #151922;
+  padding: 0.5rem 0.65rem;
+  font-size: 0.82rem;
+  min-height: 0;
+}
+
+.meta-panel.hidden {
+  display: none;
+}
+
+.meta-panel-title {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #8b93a7;
+  margin-bottom: 0.35rem;
+}
+
+#plan-panel {
+  border-color: #3a4a2a;
+  background: #141a12;
+}
+
+#thought-panel {
+  border-color: #3a3555;
+  background: #16141f;
+}
+
+#tool-panel {
+  border-color: #2a4055;
+  background: #121820;
+}
+
+#usage-panel {
+  border-color: #3a3a2a;
+  background: #18160f;
+}
+
+.plan-list,
+.tool-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: #c5cce0;
+}
+
+.plan-list li,
+.tool-list li {
+  margin: 0.15rem 0;
+}
+
+.plan-status,
+.tool-kind,
+.tool-status {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #9ec5ff;
+  margin-right: 0.25rem;
+}
+
+.thought-body {
+  color: #b8b0d8;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-style: italic;
+}
+
+.thought-chunk.streaming::after {
+  content: "▋";
+  animation: blink 1s step-end infinite;
+}
+
+.usage-body {
+  font-variant-numeric: tabular-nums;
+  color: #d8d0a8;
+}
+
+.turn-status {
+  min-height: 1.25rem;
+  padding: 0.25rem 1.25rem 0;
+  font-size: 0.8rem;
+  color: #8b93a7;
+  font-weight: 600;
+}
+
+.turn-status[data-stop-reason="end_turn"] {
+  color: #8fd49a;
+}
+
+.turn-status[data-stop-reason="cancelled"],
+.turn-status[data-stop-reason="cancelling"] {
+  color: #ffd79a;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
 .messages {
   overflow: auto;
   padding: 1rem 1.25rem 1.5rem;
@@ -150,6 +309,12 @@ body {
 
 .message-assistant.streaming {
   border-color: #3b6ea8;
+}
+
+.message-system {
+  border-color: #3a3555;
+  background: #15141c;
+  opacity: 0.95;
 }
 
 .message-role {

@@ -39,9 +39,10 @@ function appendTextChunk(
   return [...content, chunk];
 }
 
-function upsertAssistantMessage(
+function upsertRoleMessage(
   messages: Message[],
   messageId: string,
+  role: Message["role"],
   chunk: ContentBlock,
 ): Message[] {
   const idx = messages.findIndex((m) => m.messageId === messageId);
@@ -50,7 +51,7 @@ function upsertAssistantMessage(
       ...messages,
       {
         messageId,
-        role: "assistant",
+        role,
         content: [chunk],
         streaming: true,
       },
@@ -64,6 +65,14 @@ function upsertAssistantMessage(
     streaming: true,
   };
   return next;
+}
+
+function upsertAssistantMessage(
+  messages: Message[],
+  messageId: string,
+  chunk: ContentBlock,
+): Message[] {
+  return upsertRoleMessage(messages, messageId, "assistant", chunk);
 }
 
 function finishStreamingMessages(messages: Message[]): Message[] {
@@ -150,9 +159,20 @@ export function reduce(
       };
     }
 
-    case "assistant.thought_chunk":
-      // Thoughts are activity-adjacent; keep in messages as system-stream for v1 seam
-      return snapshot;
+    case "assistant.thought_chunk": {
+      const messageId =
+        event.payload.messageId ??
+        `thought-${event.turnId ?? snapshot.turn?.turnId ?? "unknown"}`;
+      return {
+        ...snapshot,
+        messages: upsertRoleMessage(
+          snapshot.messages,
+          messageId,
+          "thought",
+          event.payload.chunk,
+        ),
+      };
+    }
 
     case "plan.updated":
       return { ...snapshot, plan: event.payload.entries };

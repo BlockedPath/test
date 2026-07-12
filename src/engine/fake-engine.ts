@@ -33,6 +33,11 @@ export type FakeEngineOptions = {
    * Useful for faulted-state demos/tests.
    */
   faultOnPrompt?: boolean;
+  /**
+   * When true (default), demo turns also emit plan, thoughts, tools, and usage
+   * so the conversation workspace can exercise distinct presentation.
+   */
+  richTurn?: boolean;
 };
 
 /**
@@ -56,10 +61,12 @@ export class FakeAgentEngine implements AgentEnginePort {
   private streamWaiters: Array<() => void> = [];
   private readonly streamDelayMs: number;
   private readonly faultOnPrompt: boolean;
+  private readonly richTurn: boolean;
 
   constructor(options: FakeEngineOptions = {}) {
     this.streamDelayMs = options.streamDelayMs ?? 40;
     this.faultOnPrompt = options.faultOnPrompt ?? false;
+    this.richTurn = options.richTurn ?? true;
   }
 
   private nextEventId(): string {
@@ -244,6 +251,10 @@ export class FakeAgentEngine implements AgentEnginePort {
         .map((b) => b.text)
         .join("") || "(empty prompt)";
 
+    if (this.richTurn) {
+      await this.emitRichSideChannel(turnId);
+    }
+
     const chunks = [
       "Got it. ",
       "I'm the **fake** agent engine behind `AgentEnginePort`. ",
@@ -261,6 +272,36 @@ export class FakeAgentEngine implements AgentEnginePort {
         sessionId: this.sessionId,
         turnId,
         payload: { messageId, chunk: { type: "text", text } },
+      });
+    }
+
+    if (this.richTurn && !this.cancelRequested && !this.disposed) {
+      this.emit({
+        type: "usage.updated",
+        sessionId: this.sessionId,
+        turnId,
+        payload: { used: 1284, size: 128_000, cost: { amount: 0.02, currency: "USD" } },
+      });
+      this.emit({
+        type: "tool.finished",
+        sessionId: this.sessionId,
+        turnId,
+        payload: {
+          toolCallId: `tool-read-${turnId}`,
+          status: "completed",
+        },
+      });
+      this.emit({
+        type: "plan.updated",
+        sessionId: this.sessionId,
+        turnId,
+        payload: {
+          entries: [
+            { content: "Inspect project layout", status: "completed", priority: "high" },
+            { content: "Summarize findings", status: "completed", priority: "medium" },
+            { content: "Respond to the user", status: "completed", priority: "high" },
+          ],
+        },
       });
     }
 
@@ -288,6 +329,61 @@ export class FakeAgentEngine implements AgentEnginePort {
       }
     }
     this.openTurnId = null;
+  }
+
+  /** Emits plan / thought / tool events before and during a rich demo turn. */
+  private async emitRichSideChannel(turnId: string): Promise<void> {
+    if (this.cancelRequested || this.disposed) return;
+
+    this.emit({
+      type: "plan.updated",
+      sessionId: this.sessionId,
+      turnId,
+      payload: {
+        entries: [
+          { content: "Inspect project layout", status: "in_progress", priority: "high" },
+          { content: "Summarize findings", status: "pending", priority: "medium" },
+          { content: "Respond to the user", status: "pending", priority: "high" },
+        ],
+      },
+    });
+
+    const thoughtId = `thought-${turnId}`;
+    for (const text of [
+      "Thinking about the request… ",
+      "I should read the project layout before answering. ",
+    ]) {
+      if (this.cancelRequested || this.disposed) return;
+      await this.delay(this.streamDelayMs);
+      if (this.cancelRequested || this.disposed) return;
+      this.emit({
+        type: "assistant.thought_chunk",
+        sessionId: this.sessionId,
+        turnId,
+        payload: { messageId: thoughtId, chunk: { type: "text", text } },
+      });
+    }
+
+    if (this.cancelRequested || this.disposed) return;
+    const toolCallId = `tool-read-${turnId}`;
+    this.emit({
+      type: "tool.started",
+      sessionId: this.sessionId,
+      turnId,
+      payload: {
+        toolCallId,
+        title: "Read project files",
+        kind: "read",
+        status: "in_progress",
+        locations: [{ path: "src/main.ts" }],
+      },
+    });
+    this.emit({
+      type: "usage.updated",
+      sessionId: this.sessionId,
+      turnId,
+      payload: { used: 420, size: 128_000 },
+    });
   }
 
   async respondToApproval(

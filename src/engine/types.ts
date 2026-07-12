@@ -58,7 +58,7 @@ export type PlanEntry = {
   priority?: "low" | "medium" | "high";
 };
 
-export type MessageRole = "user" | "assistant" | "system";
+export type MessageRole = "user" | "assistant" | "system" | "thought";
 
 export type Message = {
   messageId: string;
