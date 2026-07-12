@@ -3,9 +3,13 @@
  * UI depends only on AgentEnginePort + SessionSnapshot projections.
  */
 
+import type { FileWriteHost } from "../edits";
+import { formatChangeDiff, setChangeSelected } from "../edits";
 import type { AgentEnginePort } from "../engine/port";
 import type {
   ApprovalOutcome,
+  FileChangeBatch,
+  FileChangeRecord,
   Message,
   PlanEntry,
   SessionSnapshot,
@@ -13,6 +17,12 @@ import type {
   TerminalRecord,
   ToolCallRecord,
 } from "../engine/types";
+import {
+  applyBatch,
+  deselectAllFiles,
+  rejectBatch,
+  selectAllFiles,
+} from "./edit-review";
 
 export type ConversationAppOptions = {
   /** Project folder for start / createSession. */
@@ -24,6 +34,11 @@ export type ConversationAppOptions = {
   autoDemoPrompt?: string | null;
   /** Header subtitle; defaults to the conversation-workspace blurb. */
   subtitle?: string;
+  /**
+   * Host used to write approved file changes.
+   * Required for Apply selected; reject works without it.
+   */
+  fileWriteHost?: FileWriteHost;
 };
 
 function textFromMessage(message: Message): string {
@@ -69,6 +84,7 @@ export class ConversationApp {
   private projectPath: string;
   private autoDemoPrompt: string | null;
   private subtitle: string;
+  private fileWriteHost: FileWriteHost | null;
 
   private messagesEl!: HTMLElement;
   private statusEl!: HTMLElement;
@@ -82,12 +98,16 @@ export class ConversationApp {
   private usagePanelEl!: HTMLElement;
   private errorRecoveryEl!: HTMLElement;
   private errorDetailEl!: HTMLElement;
+  private fileChangesEl!: HTMLElement;
   private inputEl!: HTMLTextAreaElement;
   private sendBtn!: HTMLButtonElement;
   private stopBtn!: HTMLButtonElement;
   private emergencyBtn!: HTMLButtonElement;
   private yoloBtn!: HTMLButtonElement;
   private unsubSnapshot: (() => void) | null = null;
+  /** Expanded change ids for full-diff review. */
+  private expandedChanges = new Set<string>();
+  private applying = false;
 
   constructor(
     root: HTMLElement,
@@ -100,6 +120,7 @@ export class ConversationApp {
     this.autoDemoPrompt = options.autoDemoPrompt ?? null;
     this.subtitle =
       options.subtitle ?? "Conversation workspace · AgentEnginePort seam";
+    this.fileWriteHost = options.fileWriteHost ?? null;
   }
 
   async mount(): Promise<void> {
@@ -181,6 +202,13 @@ export class ConversationApp {
 
         <section id="messages" class="messages" aria-live="polite" data-testid="messages"></section>
 
+        <section
+          id="file-changes"
+          class="file-changes"
+          data-testid="file-changes"
+          aria-label="Proposed file changes"
+        ></section>
+
         <footer class="composer">
           <textarea
             id="prompt-input"
@@ -210,6 +238,7 @@ export class ConversationApp {
     this.usagePanelEl = this.must("#usage-panel");
     this.errorRecoveryEl = this.must("#error-recovery");
     this.errorDetailEl = this.must("#error-detail");
+    this.fileChangesEl = this.must("#file-changes");
     this.inputEl = this.must("#prompt-input") as HTMLTextAreaElement;
     this.sendBtn = this.must("#send-btn") as HTMLButtonElement;
     this.stopBtn = this.must("#stop-btn") as HTMLButtonElement;
@@ -227,6 +256,12 @@ export class ConversationApp {
       void this.onRetryEngine(),
     );
     this.must("#recover-cli").addEventListener("click", () => this.onCliFallback());
+    this.fileChangesEl.addEventListener("click", (e) =>
+      void this.onFileChangesClick(e),
+    );
+    this.fileChangesEl.addEventListener("change", (e) =>
+      void this.onFileChangesChange(e),
+    );
     this.approvalPanelEl.addEventListener("click", (e) => {
       const target = e.target as HTMLElement | null;
       const btn = target?.closest("[data-approval-action]") as HTMLElement | null;
@@ -301,6 +336,7 @@ export class ConversationApp {
     this.renderActivity(snap);
     this.renderUsage(snap);
     this.renderMessages(snap.messages);
+    this.renderFileChanges(snap.fileChangeBatches ?? []);
     this.renderComposerState(snap);
   }
 
@@ -511,19 +547,238 @@ export class ConversationApp {
     this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
   }
 
+  private renderFileChanges(batches: FileChangeBatch[]): void {
+    if (!batches.length) {
+      this.fileChangesEl.innerHTML = "";
+      this.fileChangesEl.classList.add("hidden");
+      return;
+    }
+    this.fileChangesEl.classList.remove("hidden");
+    this.fileChangesEl.innerHTML = batches
+      .map((batch) => this.renderBatchCard(batch))
+      .join("");
+  }
+
+  private renderBatchCard(batch: FileChangeBatch): string {
+    const pending = batch.status === "pending";
+    const rows = batch.changes
+      .map((change) => this.renderChangeRow(batch.batchId, change, pending))
+      .join("");
+    const actions = pending
+      ? `
+        <div class="file-change-actions">
+          <button type="button" class="btn ghost" data-testid="file-change-select-all" data-action="select-all" data-batch-id="${escapeHtml(batch.batchId)}">Select all</button>
+          <button type="button" class="btn ghost" data-testid="file-change-deselect-all" data-action="deselect-all" data-batch-id="${escapeHtml(batch.batchId)}">Deselect all</button>
+          <button type="button" class="btn secondary" data-testid="file-change-reject" data-action="reject-all" data-batch-id="${escapeHtml(batch.batchId)}">Reject all</button>
+          <button type="button" class="btn primary" data-testid="file-change-apply" data-action="apply-selected" data-batch-id="${escapeHtml(batch.batchId)}" ${this.applying ? "disabled" : ""}>Apply selected</button>
+        </div>
+      `
+      : `<div class="file-change-resolved-label">Review complete</div>`;
+
+    return `
+      <article
+        class="file-change-batch"
+        data-testid="file-change-batch"
+        data-batch-id="${escapeHtml(batch.batchId)}"
+        data-status="${escapeHtml(batch.status)}"
+      >
+        <header class="file-change-batch-header">
+          <strong>${escapeHtml(batch.title)}</strong>
+          <span class="file-change-batch-status" data-status="${escapeHtml(batch.status)}">${escapeHtml(batch.status)}</span>
+        </header>
+        <p class="file-change-hint">Review diffs, cherry-pick files, then apply only what you accept.</p>
+        <ul class="file-change-list">${rows}</ul>
+        ${actions}
+      </article>
+    `;
+  }
+
+  private renderChangeRow(
+    batchId: string,
+    change: FileChangeRecord,
+    pending: boolean,
+  ): string {
+    const expanded = this.expandedChanges.has(change.changeId);
+    const diffLines = formatChangeDiff(change);
+    const inline = diffLines
+      .slice(0, 8)
+      .map((line) => {
+        return `<div class="diff-line diff-${escapeHtml(line.type)}">${escapeHtml(line.text)}</div>`;
+      })
+      .join("");
+    const full = expanded
+      ? `<pre class="file-change-full-diff" data-testid="file-change-full-diff">${escapeHtml(
+          diffLines.map((l) => l.text).join("\n"),
+        )}</pre>`
+      : "";
+    const checkbox =
+      pending && !change.malformed
+        ? `<input
+            type="checkbox"
+            data-testid="file-change-select"
+            data-action="toggle-select"
+            data-batch-id="${escapeHtml(batchId)}"
+            data-change-id="${escapeHtml(change.changeId)}"
+            ${change.selected ? "checked" : ""}
+            aria-label="Select ${escapeHtml(change.path)}"
+          />`
+        : `<span class="file-change-checkbox-spacer" aria-hidden="true"></span>`;
+
+    const dest =
+      change.kind === "move" && change.diff?.destinationPath
+        ? ` → ${escapeHtml(change.diff.destinationPath)}`
+        : "";
+    const err = change.errorMessage
+      ? `<div class="file-change-error">${escapeHtml(change.errorMessage)}</div>`
+      : "";
+    const malformed = change.malformed
+      ? `<div class="file-change-error">${escapeHtml(change.malformedReason ?? "Malformed proposal")}</div>`
+      : "";
+
+    return `
+      <li
+        class="file-change-row"
+        data-testid="file-change-row"
+        data-change-id="${escapeHtml(change.changeId)}"
+        data-status="${escapeHtml(change.status)}"
+        data-kind="${escapeHtml(change.kind)}"
+      >
+        <div class="file-change-row-main">
+          ${checkbox}
+          <span class="file-change-kind">${escapeHtml(change.kind)}</span>
+          <span class="file-change-path">${escapeHtml(change.path)}${dest}</span>
+          <span class="file-change-status" data-status="${escapeHtml(change.status)}">${escapeHtml(change.status)}</span>
+          <button
+            type="button"
+            class="btn ghost file-change-expand-btn"
+            data-testid="file-change-expand"
+            data-action="toggle-expand"
+            data-change-id="${escapeHtml(change.changeId)}"
+          >${expanded ? "Collapse" : "Expand"}</button>
+        </div>
+        ${malformed}
+        ${err}
+        <div class="file-change-inline-diff" data-testid="file-change-inline-diff">${inline}</div>
+        ${full}
+      </li>
+    `;
+  }
+
+  private findBatch(batchId: string): FileChangeBatch | null {
+    const snap = this.engine.getSnapshot();
+    return snap?.fileChangeBatches.find((b) => b.batchId === batchId) ?? null;
+  }
+
+  private async publishBatchUpdate(batch: FileChangeBatch): Promise<void> {
+    if (!this.engine.updateFileChangeBatch) {
+      throw new Error("Engine does not support file-change batch updates");
+    }
+    await this.engine.updateFileChangeBatch(batch);
+  }
+
+  private async onFileChangesChange(event: Event): Promise<void> {
+    const target = event.target;
+    if (!(target instanceof HTMLInputElement)) return;
+    if (target.dataset.action !== "toggle-select") return;
+    const batchId = target.dataset.batchId;
+    const changeId = target.dataset.changeId;
+    if (!batchId || !changeId) return;
+    const batch = this.findBatch(batchId);
+    if (!batch || batch.status !== "pending") return;
+    await this.publishBatchUpdate(
+      setChangeSelected(batch, changeId, target.checked),
+    );
+  }
+
+  private async onFileChangesClick(event: Event): Promise<void> {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    const actionEl = target.closest("[data-action]") as HTMLElement | null;
+    if (!actionEl) return;
+    const action = actionEl.dataset.action;
+    if (!action) return;
+
+    if (action === "toggle-expand") {
+      const changeId = actionEl.dataset.changeId;
+      if (!changeId) return;
+      if (this.expandedChanges.has(changeId)) {
+        this.expandedChanges.delete(changeId);
+      } else {
+        this.expandedChanges.add(changeId);
+      }
+      const snap = this.engine.getSnapshot();
+      if (snap) this.renderFileChanges(snap.fileChangeBatches ?? []);
+      return;
+    }
+
+    const batchId = actionEl.dataset.batchId;
+    if (!batchId) return;
+    const batch = this.findBatch(batchId);
+    if (!batch || batch.status !== "pending") return;
+
+    if (action === "select-all") {
+      await this.publishBatchUpdate(selectAllFiles(batch));
+      return;
+    }
+    if (action === "deselect-all") {
+      await this.publishBatchUpdate(deselectAllFiles(batch));
+      return;
+    }
+    if (action === "reject-all") {
+      const rejected = rejectBatch(batch);
+      await this.publishBatchUpdate(rejected);
+      if (batch.requestId) {
+        await this.engine.respondToApproval(batch.requestId, {
+          outcome: "selected",
+          optionId: "reject-once",
+        });
+      }
+      return;
+    }
+    if (action === "apply-selected") {
+      if (!this.fileWriteHost) {
+        this.errorRecoveryEl.classList.remove("hidden");
+        this.errorDetailEl.textContent =
+          "No file write host configured; cannot apply edits.";
+        return;
+      }
+      this.applying = true;
+      try {
+        const applied = await applyBatch(batch, this.fileWriteHost);
+        await this.publishBatchUpdate(applied);
+        if (batch.requestId) {
+          await this.engine.respondToApproval(batch.requestId, {
+            outcome: "selected",
+            optionId: "allow-once",
+          });
+        }
+      } catch (err) {
+        this.errorRecoveryEl.classList.remove("hidden");
+        this.errorDetailEl.textContent =
+          err instanceof Error ? err.message : String(err);
+      } finally {
+        this.applying = false;
+        const snap = this.engine.getSnapshot();
+        if (snap) this.render(snap);
+      }
+    }
+  }
+
   private renderComposerState(snap: SessionSnapshot): void {
     this.yoloBtn.textContent = snap.yoloEnabled ? "YOLO on" : "YOLO off";
     this.yoloBtn.classList.toggle("active", snap.yoloEnabled);
 
-    const busy =
+    const blocked = snap.state === "faulted" || snap.state === "disposed";
+    const turnOpen =
+      snap.state === "running" || snap.state === "cancelling";
+    // Allow Send after a turn settles even if a file batch is still pending review.
+    this.sendBtn.disabled = turnOpen || blocked || this.applying;
+    this.inputEl.disabled = blocked;
+    this.stopBtn.disabled = !(
       snap.state === "running" ||
       snap.state === "awaiting_approval" ||
-      snap.state === "cancelling";
-    const blocked = snap.state === "faulted" || snap.state === "disposed";
-
-    this.sendBtn.disabled = busy || blocked;
-    this.inputEl.disabled = blocked;
-    this.stopBtn.disabled = !busy;
+      snap.state === "cancelling"
+    );
     this.emergencyBtn.disabled = snap.state === "disposed";
     this.yoloBtn.disabled = blocked;
   }

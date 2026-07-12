@@ -3,6 +3,7 @@
  * Files rail + conversation-first ConversationApp (issue #12).
  */
 
+import type { FileWriteHost } from "../edits";
 import type { AgentEnginePort } from "../engine/port";
 import { ConversationApp } from "../workspace/app";
 import { DEMO_PROJECT_PATH } from "./memory-host";
@@ -21,6 +22,8 @@ export type ProjectShellOptions = {
   /** Factory so Change Project can start a fresh engine/session. */
   createEngine: () => AgentEnginePort;
   autoDemoPrompt?: string | null;
+  /** Applies approved multi-file edits (issue #14). */
+  fileWriteHost?: FileWriteHost;
 };
 
 function escapeHtml(value: string): string {
@@ -53,6 +56,7 @@ export class ProjectShell {
   private projects: ProjectService;
   private createEngine: () => AgentEnginePort;
   private autoDemoPrompt: string | null;
+  private fileWriteHost: FileWriteHost | null;
 
   private phase: ProjectPhase = "choose";
   private projectError: ProjectError | null = null;
@@ -70,6 +74,7 @@ export class ProjectShell {
     this.projects = options.projects;
     this.createEngine = options.createEngine;
     this.autoDemoPrompt = options.autoDemoPrompt ?? null;
+    this.fileWriteHost = options.fileWriteHost ?? null;
   }
 
   async mount(): Promise<void> {
@@ -273,6 +278,7 @@ export class ProjectShell {
       projectPath: project.path,
       subtitle: project.path,
       autoDemoPrompt: this.autoDemoPrompt,
+      fileWriteHost: this.fileWriteHost ?? undefined,
     });
     await this.conversation.mount();
   }

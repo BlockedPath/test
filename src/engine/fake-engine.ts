@@ -5,10 +5,12 @@
 
 import type { AgentEnginePort, GuiEventListener, SnapshotListener } from "./port";
 import { createEmptySnapshot, reduce } from "./reducer";
+import { normalizeFileChangeBatch } from "../edits/normalize";
 import type {
   ApprovalOutcome,
   ContentBlock,
   CreateSessionOptions,
+  FileChangeBatch,
   GuiEvent,
   SessionSnapshot,
   StartOptions,
@@ -38,6 +40,11 @@ export type FakeEngineOptions = {
    * so the conversation workspace can exercise distinct presentation.
    */
   richTurn?: boolean;
+  /**
+   * When true, demo turns propose a multi-file edit batch for review.
+   * Default false (opt-in for edit-review demos/tests).
+   */
+  proposeEditsOnPrompt?: boolean;
   /**
    * When true, demo turns request command approval and emit a successful
    * Activity-panel command (exit 0).
@@ -71,8 +78,10 @@ export class FakeAgentEngine implements AgentEnginePort {
   private readonly streamDelayMs: number;
   private readonly faultOnPrompt: boolean;
   private readonly richTurn: boolean;
+  private readonly proposeEditsOnPrompt: boolean;
   private readonly commandTurn: boolean;
   private readonly commandFail: boolean;
+  private batchCounter = 0;
   private permissionWaiters = new Map<
     string,
     { resolve: () => void; reject: (err: Error) => void }
@@ -83,6 +92,7 @@ export class FakeAgentEngine implements AgentEnginePort {
     this.streamDelayMs = options.streamDelayMs ?? 40;
     this.faultOnPrompt = options.faultOnPrompt ?? false;
     this.richTurn = options.richTurn ?? true;
+    this.proposeEditsOnPrompt = options.proposeEditsOnPrompt ?? false;
     this.commandTurn = options.commandTurn ?? false;
     this.commandFail = options.commandFail ?? false;
   }
@@ -278,16 +288,26 @@ export class FakeAgentEngine implements AgentEnginePort {
       await this.emitRichSideChannel(turnId);
     }
 
+    if (this.proposeEditsOnPrompt && !this.cancelRequested && !this.disposed) {
+      await this.emitDemoFileEditBatch(turnId);
+    }
+
     if (this.commandTurn && !this.cancelRequested && !this.disposed) {
       await this.emitCommandDemo(turnId);
     }
 
-    const chunks = [
-      "Got it. ",
-      "I'm the **fake** agent engine behind `AgentEnginePort`. ",
-      `You said: “${userText.slice(0, 120)}”. `,
-      "This turn is normalized GuiEvents reduced into a SessionSnapshot — no ACP wire, no TUI.",
-    ];
+    const chunks = this.proposeEditsOnPrompt
+      ? [
+          "I've prepared a multi-file edit for your review. ",
+          "Select the files you want, expand any diff, then approve or reject. ",
+          `You said: “${userText.slice(0, 120)}”.`,
+        ]
+      : [
+          "Got it. ",
+          "I'm the **fake** agent engine behind `AgentEnginePort`. ",
+          `You said: “${userText.slice(0, 120)}”. `,
+          "This turn is normalized GuiEvents reduced into a SessionSnapshot — no ACP wire, no TUI.",
+        ];
 
     const messageId = `asst-${turnId}`;
     for (const text of chunks) {
@@ -582,6 +602,93 @@ export class FakeAgentEngine implements AgentEnginePort {
       if (allowed) waiter.resolve();
       else waiter.reject(new Error("rejected"));
     }
+  }
+
+  async proposeFileChangeBatch(batch: FileChangeBatch): Promise<void> {
+    this.assertSession();
+    this.emit({
+      type: "file.batch_proposed",
+      sessionId: this.sessionId,
+      turnId: this.openTurnId ?? batch.turnId,
+      payload: { batch },
+    });
+  }
+
+  async updateFileChangeBatch(batch: FileChangeBatch): Promise<void> {
+    this.assertSession();
+    this.emit({
+      type: "file.batch_updated",
+      sessionId: this.sessionId,
+      turnId: this.openTurnId ?? batch.turnId,
+      payload: { batch },
+    });
+  }
+
+  /** Demo multi-file edit: create + edit + delete. */
+  private async emitDemoFileEditBatch(turnId: string): Promise<void> {
+    this.batchCounter += 1;
+    const batchId = `batch-${this.batchCounter}`;
+    const requestId = `edit-req-${this.batchCounter}`;
+    const batch = normalizeFileChangeBatch({
+      batchId,
+      requestId,
+      turnId,
+      title: "Add health endpoint and clean up legacy",
+      proposals: [
+        {
+          path: "src/health.ts",
+          newText: "export function health() {\n  return { ok: true };\n}\n",
+        },
+        {
+          path: "src/main.ts",
+          oldText: "console.log('boot');\n",
+          newText: "import { health } from './health';\nconsole.log(health());\n",
+        },
+        {
+          path: "src/legacy.ts",
+          kind: "delete",
+          oldText: "export const legacy = true;\n",
+          newText: null,
+        },
+      ],
+    });
+
+    this.emit({
+      type: "tool.started",
+      sessionId: this.sessionId,
+      turnId,
+      payload: {
+        toolCallId: `tool-edit-${turnId}`,
+        title: "Propose multi-file edit",
+        kind: "edit",
+        status: "pending",
+        locations: batch.changes.map((c) => ({ path: c.path })),
+      },
+    });
+
+    this.emit({
+      type: "file.batch_proposed",
+      sessionId: this.sessionId,
+      turnId,
+      payload: { batch },
+    });
+
+    this.emit({
+      type: "approval.requested",
+      sessionId: this.sessionId,
+      turnId,
+      payload: {
+        requestId,
+        toolCallId: `tool-edit-${turnId}`,
+        title: batch.title,
+        kind: "edit",
+        options: [
+          { optionId: "allow-once", name: "Apply selected", kind: "allow_once" },
+          { optionId: "reject-once", name: "Reject all", kind: "reject_once" },
+        ],
+        preview: { batchId, files: batch.changes.map((c) => c.path) },
+      },
+    });
   }
 
   async setYolo(enabled: boolean): Promise<void> {
