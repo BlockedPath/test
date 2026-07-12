@@ -36,8 +36,11 @@ export function rejectBatch(batch: FileChangeBatch): FileChangeBatch {
 export async function applyBatch(
   batch: FileChangeBatch,
   host: FileWriteHost,
+  options?: { projectPath?: string },
 ): Promise<FileChangeBatch> {
-  const result = await applySelectedChanges(batch, host);
+  const result = await applySelectedChanges(batch, host, {
+    projectPath: options?.projectPath,
+  });
   return result.batch;
 }
 

@@ -38,6 +38,15 @@ import {
   type SpawnTerminalProcess,
   type TerminalCreateRequest,
 } from "./terminal-bridge";
+import {
+  actionFromPermission,
+  applyYoloChange,
+  createSessionSafetyState,
+  decideAction,
+  rememberAllowSimilar,
+  resetSessionSafety,
+  type SessionSafetyState,
+} from "../safety";
 
 export type GrokAcpEngineDeps = {
   discovery: DiscoveryHost;
@@ -97,10 +106,15 @@ export class GrokAcpEngine implements AgentEnginePort {
     }
   >();
   private permissionSeq = 0;
-  private yoloEnabled = false;
+  private safety: SessionSafetyState = createSessionSafetyState("");
 
   constructor(private readonly deps: GrokAcpEngineDeps) {
     this.requestTimeoutMs = deps.requestTimeoutMs ?? 60_000;
+  }
+
+  /** Test access to Session safety state. */
+  getSafetyState(): SessionSafetyState {
+    return this.safety;
   }
 
   /** Test/diagnostic access to the terminal bridge. */
@@ -183,6 +197,7 @@ export class GrokAcpEngine implements AgentEnginePort {
     this.assertNotDisposed();
     this.projectPath = options.projectPath;
     this.authPolicy = options.authPolicy;
+    this.safety = createSessionSafetyState(options.projectPath);
     this.snapshot = createEmptySnapshot({
       sessionId: "pending",
       projectPath: options.projectPath,
@@ -493,6 +508,9 @@ export class GrokAcpEngine implements AgentEnginePort {
       }
 
       this.sessionId = result.sessionId;
+      this.projectPath = cwd;
+      // New Session always starts with YOLO off and empty allowlist.
+      this.safety = resetSessionSafety(createSessionSafetyState(cwd));
       this.snapshot = {
         ...createEmptySnapshot({
           sessionId: this.sessionId,
@@ -500,6 +518,7 @@ export class GrokAcpEngine implements AgentEnginePort {
         }),
         engineVersion: this.engineVersion,
         protocolVersion: this.protocolVersion,
+        yoloEnabled: false,
       };
 
       this.emit({
@@ -609,6 +628,36 @@ export class GrokAcpEngine implements AgentEnginePort {
     decision: ApprovalOutcome,
   ): Promise<void> {
     this.assertSession();
+    // Allow-similar / allow_always for normal commands → narrow Session allowlist.
+    if (
+      decision.outcome === "selected" &&
+      (decision.optionId.includes("similar") ||
+        decision.optionId.includes("always") ||
+        decision.optionId === "allow-always")
+    ) {
+      const pending = this.snapshot?.pendingApprovals.find(
+        (a) => a.requestId === requestId,
+      );
+      if (pending) {
+        const action = actionFromPermission({
+          kind: pending.kind,
+          title: pending.title,
+          preview: pending.preview,
+          projectPath: this.projectPath,
+        });
+        if (action.kind === "command") {
+          const remembered = rememberAllowSimilar(
+            this.safety,
+            action.command,
+            action.args,
+          );
+          // Only keep if policy would consider it non-elevated.
+          if (remembered.added || remembered.reason?.includes("Already")) {
+            this.safety = remembered.state;
+          }
+        }
+      }
+    }
     this.emit({
       type: "approval.resolved",
       sessionId: this.sessionId,
@@ -622,13 +671,23 @@ export class GrokAcpEngine implements AgentEnginePort {
     }
   }
 
-  async setYolo(enabled: boolean): Promise<void> {
+  async setYolo(
+    enabled: boolean,
+    options?: { acknowledgeWarning?: boolean },
+  ): Promise<void> {
     this.assertSession();
-    this.yoloEnabled = enabled;
+    const { state, result } = applyYoloChange(this.safety, {
+      enabled,
+      acknowledgeWarning: options?.acknowledgeWarning,
+    });
+    if (!result.ok) {
+      throw new Error(result.reason);
+    }
+    this.safety = state;
     this.emit({
       type: "yolo.changed",
       sessionId: this.sessionId,
-      payload: { enabled },
+      payload: { enabled: state.yoloEnabled },
     });
   }
 
@@ -650,6 +709,15 @@ export class GrokAcpEngine implements AgentEnginePort {
   async emergencyStop(): Promise<void> {
     this.assertStarted();
     const turnId = this.openTurnId ?? undefined;
+    this.safety = resetSessionSafety(this.safety);
+    if (this.snapshot?.yoloEnabled) {
+      this.emit({
+        type: "yolo.changed",
+        sessionId: this.sessionId || "pending",
+        turnId,
+        payload: { enabled: false },
+      });
+    }
     this.emit({
       type: "session.emergency_stop",
       sessionId: this.sessionId || "pending",
@@ -982,6 +1050,7 @@ export class GrokAcpEngine implements AgentEnginePort {
         toolCallId?: string;
         title?: string;
         kind?: ToolKind;
+        rawInput?: unknown;
       };
       options?: Array<{
         optionId: string;
@@ -990,7 +1059,7 @@ export class GrokAcpEngine implements AgentEnginePort {
       }>;
     };
 
-    const options = p.options ?? [
+    const baseOptions = p.options ?? [
       { optionId: "allow-once", name: "Allow once", kind: "allow_once" as const },
       { optionId: "reject-once", name: "Reject", kind: "reject_once" as const },
     ];
@@ -1000,6 +1069,64 @@ export class GrokAcpEngine implements AgentEnginePort {
     const kind = p.toolCall?.kind;
     const title = p.toolCall?.title;
 
+    // Keep safety YOLO flag aligned with snapshot.
+    this.safety = {
+      ...this.safety,
+      projectPath: this.projectPath,
+      yoloEnabled: this.snapshot?.yoloEnabled ?? this.safety.yoloEnabled,
+    };
+
+    const preview =
+      p.toolCall?.rawInput && typeof p.toolCall.rawInput === "object"
+        ? p.toolCall.rawInput
+        : params;
+    const action = actionFromPermission({
+      kind,
+      title,
+      preview,
+      projectPath: this.projectPath,
+    });
+    const policy = decideAction(this.safety, action);
+
+    let options = baseOptions;
+    if (
+      policy.decision === "prompt" &&
+      policy.allowSimilarEligible &&
+      !options.some(
+        (o) =>
+          o.kind === "allow_always" || o.optionId.includes("similar"),
+      )
+    ) {
+      options = [
+        ...options.filter((o) => o.kind !== "reject_once" && o.kind !== "reject_always"),
+        {
+          optionId: "allow-similar",
+          name: "Allow similar for this Session",
+          kind: "allow_always" as const,
+        },
+        ...options.filter(
+          (o) => o.kind === "reject_once" || o.kind === "reject_always",
+        ),
+      ];
+    }
+    if (
+      policy.decision === "prompt" &&
+      policy.tier === "elevated"
+    ) {
+      // Elevated actions never offer Session allowlist.
+      options = options.filter(
+        (o) =>
+          o.kind !== "allow_always" && !o.optionId.includes("similar"),
+      );
+    }
+
+    const displayTitle =
+      policy.decision === "hard_block"
+        ? `Hard-blocked: ${policy.reason}`
+        : policy.decision === "prompt" && policy.tier === "elevated"
+          ? `Elevated: ${title ?? policy.reason}`
+          : title;
+
     this.emit({
       type: "approval.requested",
       sessionId: this.sessionId || "pending",
@@ -1007,18 +1134,32 @@ export class GrokAcpEngine implements AgentEnginePort {
       payload: {
         requestId,
         toolCallId,
-        title,
+        title: displayTitle,
         kind,
         options,
         preview: params,
       },
     });
 
-    // YOLO auto-allows normal in-project commands/edits once (still audited).
-    if (this.yoloEnabled || this.snapshot?.yoloEnabled) {
+    if (policy.decision === "hard_block") {
+      this.emit({
+        type: "approval.resolved",
+        sessionId: this.sessionId || "pending",
+        turnId: this.openTurnId ?? undefined,
+        payload: {
+          requestId,
+          outcome: { outcome: "cancelled" },
+          source: "policy",
+        },
+      });
+      return { outcome: { outcome: "cancelled" } };
+    }
+
+    if (policy.decision === "allow") {
       const allow =
         options.find((o) => o.kind === "allow_once") ??
-        options.find((o) => o.kind === "allow_always");
+        options.find((o) => o.kind === "allow_always") ??
+        options[0];
       if (allow) {
         this.emit({
           type: "approval.resolved",
@@ -1027,7 +1168,7 @@ export class GrokAcpEngine implements AgentEnginePort {
           payload: {
             requestId,
             outcome: { outcome: "selected", optionId: allow.optionId },
-            source: "yolo",
+            source: policy.source,
           },
         });
         return {

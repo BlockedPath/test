@@ -20,6 +20,10 @@ export {
   selectAllChanges,
   setChangeSelected,
 } from "./selection";
-export { applySelectedChanges, type ApplyResult } from "./apply";
+export {
+  applySelectedChanges,
+  type ApplyResult,
+  type ApplySafetyOptions,
+} from "./apply";
 export { formatChangeDiff, formatDiffLines } from "./format-diff";
 export { createMemoryFileWriteHost } from "./memory-host";

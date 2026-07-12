@@ -18,6 +18,11 @@ import type {
   ToolCallRecord,
 } from "../engine/types";
 import {
+  YOLO_INDICATOR_LABEL,
+  YOLO_WARNING,
+  redactForDisplay,
+} from "../safety";
+import {
   applyBatch,
   deselectAllFiles,
   rejectBatch,
@@ -104,6 +109,7 @@ export class ConversationApp {
   private stopBtn!: HTMLButtonElement;
   private emergencyBtn!: HTMLButtonElement;
   private yoloBtn!: HTMLButtonElement;
+  private yoloBannerEl!: HTMLElement;
   private unsubSnapshot: (() => void) | null = null;
   /** Expanded change ids for full-diff review. */
   private expandedChanges = new Set<string>();
@@ -134,9 +140,19 @@ export class ConversationApp {
           <div class="header-meta">
             <span id="session-status" class="status-pill" data-testid="session-status">starting…</span>
             <span id="engine-health" class="engine-health" data-testid="engine-health" title="Engine version / protocol">engine —</span>
-            <button type="button" id="yolo-btn" class="btn ghost" title="Toggle YOLO for this Session">YOLO off</button>
+            <button type="button" id="yolo-btn" class="btn ghost" data-testid="yolo-toggle" title="Toggle YOLO for this Session">YOLO off</button>
           </div>
         </header>
+
+        <div
+          id="yolo-banner"
+          class="yolo-banner hidden"
+          role="status"
+          data-testid="yolo-banner"
+          aria-live="polite"
+        >
+          ${escapeHtml(YOLO_INDICATOR_LABEL)}
+        </div>
 
         <section
           id="error-recovery"
@@ -244,6 +260,7 @@ export class ConversationApp {
     this.stopBtn = this.must("#stop-btn") as HTMLButtonElement;
     this.emergencyBtn = this.must("#emergency-btn") as HTMLButtonElement;
     this.yoloBtn = this.must("#yolo-btn") as HTMLButtonElement;
+    this.yoloBannerEl = this.must("#yolo-banner");
 
     this.sendBtn.addEventListener("click", () => void this.onSend());
     this.stopBtn.addEventListener("click", () => void this.onStop());
@@ -506,7 +523,7 @@ export class ConversationApp {
         </header>
         <div class="activity-command-scope"><span class="activity-label">cwd</span> ${cwd}</div>
         <div class="activity-command-exit"><span class="activity-label">exit</span> <span data-testid="activity-exit">${escapeHtml(exit)}</span> · ${escapeHtml(t.status)}</div>
-        <pre class="activity-command-output" data-testid="activity-output">${escapeHtml(t.output || "(no output yet)")}</pre>
+        <pre class="activity-command-output" data-testid="activity-output">${escapeHtml(redactForDisplay(t.output || "(no output yet)"))}</pre>
       </article>
     `;
   }
@@ -744,7 +761,9 @@ export class ConversationApp {
       }
       this.applying = true;
       try {
-        const applied = await applyBatch(batch, this.fileWriteHost);
+        const applied = await applyBatch(batch, this.fileWriteHost, {
+          projectPath: this.projectPath,
+        });
         await this.publishBatchUpdate(applied);
         if (batch.requestId) {
           await this.engine.respondToApproval(batch.requestId, {
@@ -767,6 +786,14 @@ export class ConversationApp {
   private renderComposerState(snap: SessionSnapshot): void {
     this.yoloBtn.textContent = snap.yoloEnabled ? "YOLO on" : "YOLO off";
     this.yoloBtn.classList.toggle("active", snap.yoloEnabled);
+    this.yoloBtn.setAttribute(
+      "aria-pressed",
+      snap.yoloEnabled ? "true" : "false",
+    );
+    this.yoloBannerEl.classList.toggle("hidden", !snap.yoloEnabled);
+    this.yoloBannerEl.textContent = snap.yoloEnabled
+      ? YOLO_INDICATOR_LABEL
+      : "";
 
     const blocked = snap.state === "faulted" || snap.state === "disposed";
     const turnOpen =
@@ -820,7 +847,23 @@ export class ConversationApp {
   private async onYolo(): Promise<void> {
     const snap = this.engine.getSnapshot();
     if (!snap) return;
-    await this.engine.setYolo(!snap.yoloEnabled);
+    if (snap.yoloEnabled) {
+      await this.engine.setYolo(false);
+      return;
+    }
+    // YOLO requires an explicit warning confirmation before enabling.
+    const confirmed =
+      typeof window !== "undefined" && typeof window.confirm === "function"
+        ? window.confirm(YOLO_WARNING)
+        : false;
+    if (!confirmed) return;
+    try {
+      await this.engine.setYolo(true, { acknowledgeWarning: true });
+    } catch (err) {
+      this.errorRecoveryEl.classList.remove("hidden");
+      this.errorDetailEl.textContent =
+        err instanceof Error ? err.message : String(err);
+    }
   }
 
   private async onResetSession(): Promise<void> {
