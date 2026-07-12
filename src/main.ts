@@ -28,6 +28,7 @@ class ConversationApp {
   private root: HTMLElement;
   private messagesEl!: HTMLElement;
   private statusEl!: HTMLElement;
+  private engineHealthEl!: HTMLElement;
   private errorEl!: HTMLElement;
   private inputEl!: HTMLTextAreaElement;
   private sendBtn!: HTMLButtonElement;
@@ -50,6 +51,7 @@ class ConversationApp {
           </div>
           <div class="header-meta">
             <span id="session-status" class="status-pill" data-testid="session-status">starting…</span>
+            <span id="engine-health" class="engine-health" data-testid="engine-health" title="Engine version / protocol">engine —</span>
             <button type="button" id="yolo-btn" class="btn ghost" title="Toggle YOLO for this Session">YOLO off</button>
           </div>
         </header>
@@ -76,6 +78,7 @@ class ConversationApp {
 
     this.messagesEl = this.must("#messages");
     this.statusEl = this.must("#session-status");
+    this.engineHealthEl = this.must("#engine-health");
     this.errorEl = this.must("#error-banner");
     this.inputEl = this.must("#prompt-input") as HTMLTextAreaElement;
     this.sendBtn = this.must("#send-btn") as HTMLButtonElement;
@@ -117,6 +120,12 @@ class ConversationApp {
   private render(snap: SessionSnapshot): void {
     this.statusEl.textContent = snap.state;
     this.statusEl.dataset.state = snap.state;
+
+    const version = snap.engineVersion ?? "unknown";
+    const protocol =
+      snap.protocolVersion != null ? `acp/${snap.protocolVersion}` : "acp/?";
+    this.engineHealthEl.textContent = `${version} · ${protocol}`;
+    this.engineHealthEl.dataset.engineVersion = version;
 
     if (snap.lastError) {
       this.errorEl.classList.remove("hidden");
