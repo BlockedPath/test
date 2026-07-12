@@ -10,6 +10,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:engine-smoke": "tsx scripts/windows-engine-smoke.mjs",
+    "test:windows-live": "node scripts/windows-live-prerequisites.mjs",
     "test:packaging-smoke": "tsx scripts/windows-clean-profile-smoke.mjs",
     "test:acceptance": "vitest run src/acceptance && tsx scripts/personal-v1-acceptance.mjs",
     "tauri": "tauri",

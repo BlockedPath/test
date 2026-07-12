@@ -17,9 +17,11 @@ const WIN_PATH = process.env.GROK_EXE || "C:\\Users\\justi\\.grok\\bin\\grok.exe
 const WSL_PATH =
   process.env.GROK_EXE_WSL ||
   WIN_PATH.replace(/^C:\\/i, "/mnt/c/").replace(/\\/g, "/");
+const ENGINE_COMMAND = process.platform === "win32" ? WIN_PATH : WSL_PATH;
 const PROJECT =
   process.env.SMOKE_PROJECT ||
   "C:\\Users\\justi\\AppData\\Local\\Temp\\grok-gui-ticket-11-smoke";
+const PROJECT_PATH = process.platform === "win32" ? PROJECT : toWsl(PROJECT);
 
 function toWsl(p) {
   if (p.startsWith("/")) return p;
@@ -58,7 +60,7 @@ try {
   const identity = {
     platform: "win32",
     readVersion: async () => {
-      const { stdout, stderr } = await execFileAsync(WSL_PATH, ["--version"], {
+      const { stdout, stderr } = await execFileAsync(ENGINE_COMMAND, ["--version"], {
         timeout: 15_000,
       });
       return `${stdout}\n${stderr}`;
@@ -102,7 +104,7 @@ try {
 
 // --- live ACP (may fail without network/auth cache) ---
 try {
-  mkdirSync(toWsl(PROJECT), { recursive: true });
+  mkdirSync(PROJECT_PATH, { recursive: true });
   const identity = createNodeIdentityHost({ allowUnsignedNonWindows: true });
   // Prefer skipping double-check complexity: use our verified path
   const engine = new GrokAcpEngine({
@@ -118,7 +120,7 @@ try {
     spawn: (plan) =>
       nodeSpawnEngine({
         ...plan,
-        command: WSL_PATH,
+        command: ENGINE_COMMAND,
         env: { ...process.env, TERM: "dumb" },
       }),
     requestTimeoutMs: 60_000,
