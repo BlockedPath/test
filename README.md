@@ -36,7 +36,10 @@ Windows daily-driver packaging:
 ```bash
 npm test
 npm run test:packaging-smoke   # honest plan-only on WSL; live install needs native Windows
+npm run test:acceptance        # personal v1 walkthrough + pass/fail record (issue #19)
 ```
+
+Acceptance results land in `docs/acceptance/personal-v1-walkthrough-record.md`. Native Windows NSIS/live CLI steps are **unexecuted** on WSL/Linux — never faked as pass.
 
 ## Layout
 
@@ -44,6 +47,7 @@ npm run test:packaging-smoke   # honest plan-only on WSL; live install needs nat
 | --- | --- |
 | `src/engine/` | `AgentEnginePort`, types, reducer, fake engine, tests |
 | `src/packaging/` | NSIS/WebView2 policy, engine readiness, update pin separation |
+| `src/acceptance/` | Personal v1 walkthrough scenarios + pass/fail record (issue #19) |
 | `src/main.ts` | Minimal conversation workspace UI |
 | `src-tauri/` | Tauri 2 Rust host (`tauri.conf.json` Windows bundle) |
 
