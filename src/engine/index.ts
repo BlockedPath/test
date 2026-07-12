@@ -33,6 +33,13 @@ export {
   type TerminalCreateRequest,
   type TerminalBridgeHooks,
 } from "./terminal-bridge";
+export {
+  killProcessTree,
+  createNodeProcessCleanupHost,
+  type ProcessCleanupHost,
+  type ProcessTreeCleanupResult,
+  type CleanupStatus,
+} from "./process-cleanup";
 // Do not re-export node-host here — it pulls node: builtins into the Vite
 // browser bundle. Import `./node-host` only from Node/Tauri host code.
 export type * from "./types";

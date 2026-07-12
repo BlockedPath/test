@@ -555,4 +555,64 @@ describe("GrokAcpEngine bridge contracts", () => {
     await engine.dispose();
     expect(engine.getTerminalBridge()).toBeNull();
   });
+
+  it("Emergency Stop escalates cancel → process-tree kill → cleanup and surfaces orphans", async () => {
+    const agent = new FakeAcpAgentProcess({ sessionId: "sess-estop" });
+
+    let treeKillCalls = 0;
+    const engine = new GrokAcpEngine({
+      discovery: testDiscovery(),
+      identity: testIdentity(),
+      enginePath: "C:\\fake\\grok.exe",
+      spawn: () => agent,
+      requestTimeoutMs: 5_000,
+      processCleanup: {
+        platform: "win32",
+        killTree: async (pid) => {
+          treeKillCalls += 1;
+          expect(pid).toBe(4242);
+          return { ok: true, detail: `taskkill /T /F applied to pid ${pid}` };
+        },
+        isAlive: async () => true, // force orphans_possible
+      },
+    });
+    const events: GuiEvent[] = [];
+    engine.subscribe((e) => events.push(e));
+
+    await engine.start({ projectPath: "C:\\proj" });
+    await engine.authenticate();
+    await engine.createSession();
+    await engine.setYolo(true, { acknowledgeWarning: true });
+    expect(engine.getSnapshot()?.yoloEnabled).toBe(true);
+
+    const promptP = engine.sendPrompt("long running");
+    await new Promise((r) => setTimeout(r, 10));
+    await engine.emergencyStop();
+    await promptP.catch(() => undefined);
+
+    expect(treeKillCalls).toBe(1);
+    const phases = events
+      .filter((e) => e.type === "session.emergency_stop")
+      .map(
+        (e) =>
+          (e as Extract<GuiEvent, { type: "session.emergency_stop" }>).payload
+            .phase,
+      );
+    expect(phases).toEqual(expect.arrayContaining(["cancel", "kill", "cleanup"]));
+
+    const snap = engine.getSnapshot()!;
+    expect(snap.state).toBe("faulted");
+    expect(snap.yoloEnabled).toBe(false);
+    expect(snap.lastError?.code).toBe("emergency_stop");
+    expect(snap.cleanup?.status).toBe("orphans_possible");
+    expect(snap.cleanup?.orphanPids).toContain(4242);
+    expect(snap.cleanup?.detail ?? "").toMatch(/Nothing was rolled back/i);
+
+    // Process is down — createSession alone must fail (engine not started).
+    await expect(engine.createSession()).rejects.toThrow();
+    // Recovery contract: started flag is false after emergency.
+    await expect(
+      engine.sendPrompt("nope"),
+    ).rejects.toThrow(/not been started|No active session|faulted/i);
+  });
 });

@@ -63,6 +63,19 @@ export type FakeEngineOptions = {
    * When true with commandTurn, the demo command exits nonzero after approve.
    */
   commandFail?: boolean;
+  /**
+   * When true with commandTurn, skip the approval wait and run the command
+   * (policy-style auto-allow for cancel-during-command tests).
+   */
+  autoAllowCommands?: boolean;
+  /**
+   * When true, streamDemoTurn parks until cancel/emergencyStop clears timers.
+   * Models a hung agent for Emergency Stop tests.
+   */
+  hangTurn?: boolean;
+  /** Override Emergency Stop cleanup projection (default clean). */
+  emergencyCleanupStatus?: "clean" | "incomplete" | "orphans_possible";
+  emergencyOrphanPids?: number[];
 };
 
 /**
@@ -90,6 +103,13 @@ export class FakeAgentEngine implements AgentEnginePort {
   private readonly proposeEditsOnPrompt: boolean;
   private readonly commandTurn: boolean;
   private readonly commandFail: boolean;
+  private readonly autoAllowCommands: boolean;
+  private readonly hangTurn: boolean;
+  private readonly emergencyCleanupStatus:
+    | "clean"
+    | "incomplete"
+    | "orphans_possible";
+  private readonly emergencyOrphanPids: number[];
   private batchCounter = 0;
   private permissionWaiters = new Map<
     string,
@@ -105,6 +125,10 @@ export class FakeAgentEngine implements AgentEnginePort {
     this.proposeEditsOnPrompt = options.proposeEditsOnPrompt ?? false;
     this.commandTurn = options.commandTurn ?? false;
     this.commandFail = options.commandFail ?? false;
+    this.autoAllowCommands = options.autoAllowCommands ?? false;
+    this.hangTurn = options.hangTurn ?? false;
+    this.emergencyCleanupStatus = options.emergencyCleanupStatus ?? "clean";
+    this.emergencyOrphanPids = options.emergencyOrphanPids ?? [];
   }
 
   /** Test access to Session safety state. */
@@ -304,6 +328,12 @@ export class FakeAgentEngine implements AgentEnginePort {
         .filter((b): b is Extract<ContentBlock, { type: "text" }> => b.type === "text")
         .map((b) => b.text)
         .join("") || "(empty prompt)";
+
+    if (this.hangTurn) {
+      // Park until cancel/emergencyStop resolves waiters via clearTimers.
+      await this.delay(this.streamDelayMs > 0 ? this.streamDelayMs : 60_000);
+      // Fall through to cancel/complete handling below.
+    }
 
     if (this.richTurn) {
       await this.emitRichSideChannel(turnId);
@@ -538,7 +568,10 @@ export class FakeAgentEngine implements AgentEnginePort {
       return;
     }
 
-    if (policy.decision === "allow") {
+    const shouldAuto =
+      policy.decision === "allow" || this.autoAllowCommands;
+
+    if (shouldAuto) {
       this.emit({
         type: "approval.requested",
         sessionId: this.sessionId,
@@ -559,7 +592,7 @@ export class FakeAgentEngine implements AgentEnginePort {
         payload: {
           requestId,
           outcome: { outcome: "selected", optionId: "allow-once" },
-          source: policy.source,
+          source: this.autoAllowCommands ? "policy" : policy.source,
         },
       });
     } else {
@@ -599,7 +632,15 @@ export class FakeAgentEngine implements AgentEnginePort {
       }
     }
 
-    if (this.cancelRequested || this.disposed) return;
+    if (this.cancelRequested || this.disposed) {
+      this.emit({
+        type: "tool.finished",
+        sessionId: this.sessionId,
+        turnId,
+        payload: { toolCallId, status: "cancelled" },
+      });
+      return;
+    }
 
     this.emit({
       type: "tool.updated",
@@ -631,6 +672,12 @@ export class FakeAgentEngine implements AgentEnginePort {
         sessionId: this.sessionId,
         turnId,
         payload: { terminalId, reason: "user" },
+      });
+      this.emit({
+        type: "tool.finished",
+        sessionId: this.sessionId,
+        turnId,
+        payload: { toolCallId, status: "cancelled" },
       });
       return;
     }
@@ -833,6 +880,19 @@ export class FakeAgentEngine implements AgentEnginePort {
       turnId: this.openTurnId,
       payload: { turnId: this.openTurnId, reason: "user" },
     });
+    // Cooperative stop request for any running commands (reducer marks killed).
+    for (const [terminalId, term] of Object.entries(
+      this.snapshot?.terminals ?? {},
+    )) {
+      if (term.status === "running") {
+        this.emit({
+          type: "command.killed",
+          sessionId: this.sessionId,
+          turnId: this.openTurnId,
+          payload: { terminalId, reason: "user" },
+        });
+      }
+    }
     for (const [requestId, waiter] of this.permissionWaiters) {
       this.emit({
         type: "approval.resolved",
@@ -847,6 +907,8 @@ export class FakeAgentEngine implements AgentEnginePort {
       waiter.reject(new Error("cancelled"));
     }
     this.permissionWaiters.clear();
+    // Resolve hang/stream waiters so the turn can settle as cancelled.
+    this.clearTimers();
   }
 
   async emergencyStop(): Promise<void> {
@@ -865,6 +927,35 @@ export class FakeAgentEngine implements AgentEnginePort {
       });
     }
 
+    // Dismiss approvals + stop commands before kill.
+    for (const [requestId, waiter] of this.permissionWaiters) {
+      this.emit({
+        type: "approval.resolved",
+        sessionId: this.sessionId || "pending",
+        turnId,
+        payload: {
+          requestId,
+          outcome: { outcome: "cancelled" },
+          source: "cancel",
+        },
+      });
+      waiter.reject(new Error("cancelled"));
+    }
+    this.permissionWaiters.clear();
+
+    for (const [terminalId, term] of Object.entries(
+      this.snapshot?.terminals ?? {},
+    )) {
+      if (term.status === "running") {
+        this.emit({
+          type: "command.killed",
+          sessionId: this.sessionId || "pending",
+          turnId,
+          payload: { terminalId, reason: "emergency_stop" },
+        });
+      }
+    }
+
     this.emit({
       type: "session.emergency_stop",
       sessionId: this.sessionId || "pending",
@@ -875,7 +966,7 @@ export class FakeAgentEngine implements AgentEnginePort {
       type: "session.emergency_stop",
       sessionId: this.sessionId || "pending",
       turnId,
-      payload: { phase: "kill", detail: "fake process terminated" },
+      payload: { phase: "kill", detail: "fake process tree terminated" },
     });
     this.emit({
       type: "engine.exited",
@@ -883,14 +974,39 @@ export class FakeAgentEngine implements AgentEnginePort {
       turnId,
       payload: { exitCode: null, signal: "SIGKILL" },
     });
+
+    const orphanPids = this.emergencyOrphanPids;
+    const cleanupStatus = this.emergencyCleanupStatus;
+    const cleanupDetail =
+      cleanupStatus === "orphans_possible"
+        ? `Possible orphan process(es): ${orphanPids.join(", ") || "unknown"}. Nothing was rolled back on disk.`
+        : cleanupStatus === "incomplete"
+          ? "Process-tree cleanup incomplete. Nothing was rolled back on disk."
+          : "Process tree cleaned up. Nothing was rolled back on disk.";
+
+    this.emit({
+      type: "session.emergency_stop",
+      sessionId: this.sessionId || "pending",
+      turnId,
+      payload: {
+        phase: "cleanup",
+        detail: cleanupDetail,
+        cleanupStatus,
+        orphanPids: orphanPids.length ? orphanPids : undefined,
+      },
+    });
     this.emit({
       type: "engine.error",
       sessionId: this.sessionId || "pending",
       turnId,
       payload: {
         code: "emergency_stop",
-        message: "Emergency stop terminated the fake engine",
-        recoverable: false,
+        message:
+          cleanupStatus === "clean"
+            ? "Emergency stop terminated the fake engine"
+            : `Emergency stop terminated the fake engine (${cleanupDetail})`,
+        // Recovery controls (Retry / Reset / CLI) remain available.
+        recoverable: true,
       },
     });
     this.openTurnId = null;

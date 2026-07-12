@@ -135,6 +135,7 @@ export function reduce(
         projectPath: event.payload.cwd || snapshot.projectPath,
         state: "idle",
         lastError: undefined,
+        cleanup: undefined,
       };
 
     case "turn.started": {
@@ -487,9 +488,33 @@ export function reduce(
           terminals: killRunningTerminals(snapshot.terminals),
         };
       }
+      if (event.payload.phase === "cleanup") {
+        const cleanupStatus =
+          event.payload.cleanupStatus ??
+          (event.payload.orphanPids && event.payload.orphanPids.length > 0
+            ? "orphans_possible"
+            : "clean");
+        return {
+          ...snapshot,
+          // Cleanup phase records process-tree outcome; session stays faulted
+          // so Retry / Reset / CLI fallback remain available.
+          state: snapshot.state === "disposed" ? "disposed" : "faulted",
+          messages: finishStreamingMessages(snapshot.messages),
+          pendingApprovals: [],
+          tools: cancelOpenTools(snapshot.tools),
+          terminals: killRunningTerminals(snapshot.terminals),
+          fileChangeBatches: rejectPendingBatches(snapshot.fileChangeBatches),
+          cleanup: {
+            status: cleanupStatus,
+            detail: event.payload.detail,
+            orphanPids: event.payload.orphanPids,
+          },
+        };
+      }
+      // phase === "kill"
       return {
         ...snapshot,
-        state: event.payload.phase === "cleanup" ? "disposed" : "faulted",
+        state: "faulted",
         messages: finishStreamingMessages(snapshot.messages),
         pendingApprovals: [],
         tools: cancelOpenTools(snapshot.tools),

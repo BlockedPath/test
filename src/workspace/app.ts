@@ -358,12 +358,34 @@ export class ConversationApp {
   }
 
   private renderErrorRecovery(snap: SessionSnapshot): void {
-    if (snap.lastError) {
+    const hasError = Boolean(snap.lastError);
+    const hasCleanup =
+      Boolean(snap.cleanup) &&
+      snap.cleanup!.status !== "clean";
+    if (hasError || hasCleanup) {
       this.errorRecoveryEl.classList.remove("hidden");
-      const recoverability = snap.lastError.recoverable
-        ? "recoverable"
-        : "not recoverable";
-      this.errorDetailEl.textContent = `${snap.lastError.code}: ${snap.lastError.message} (${recoverability})`;
+      const parts: string[] = [];
+      if (snap.lastError) {
+        const recoverability = snap.lastError.recoverable
+          ? "recoverable"
+          : "not recoverable";
+        parts.push(
+          `${snap.lastError.code}: ${snap.lastError.message} (${recoverability})`,
+        );
+      }
+      if (snap.cleanup) {
+        const orphanBit =
+          snap.cleanup.orphanPids && snap.cleanup.orphanPids.length > 0
+            ? ` · possible orphan pids: ${snap.cleanup.orphanPids.join(", ")}`
+            : "";
+        parts.push(
+          `Cleanup: ${snap.cleanup.status}${orphanBit}${
+            snap.cleanup.detail ? ` — ${snap.cleanup.detail}` : ""
+          }`,
+        );
+      }
+      parts.push("Nothing was rolled back on disk.");
+      this.errorDetailEl.textContent = parts.join(" ");
     } else {
       this.errorRecoveryEl.classList.add("hidden");
       this.errorDetailEl.textContent = "";
@@ -868,9 +890,7 @@ export class ConversationApp {
 
   private async onResetSession(): Promise<void> {
     try {
-      await this.engine.createSession({ cwd: this.projectPath });
-      const snap = this.engine.getSnapshot();
-      if (snap) this.render(snap);
+      await this.recoverSession({ restartEngine: false });
     } catch (err) {
       this.errorRecoveryEl.classList.remove("hidden");
       this.errorDetailEl.textContent =
@@ -880,11 +900,8 @@ export class ConversationApp {
 
   private async onRetryEngine(): Promise<void> {
     try {
-      // Soft recovery: open a fresh Session on the same port when possible.
-      // Full process reacquire is engine-specific; createSession clears fault state.
-      await this.engine.createSession({ cwd: this.projectPath });
-      const snap = this.engine.getSnapshot();
-      if (snap) this.render(snap);
+      // Prefer re-acquiring the engine process after Emergency Stop.
+      await this.recoverSession({ restartEngine: true });
     } catch (err) {
       this.errorRecoveryEl.classList.remove("hidden");
       this.errorDetailEl.textContent =
@@ -892,9 +909,36 @@ export class ConversationApp {
     }
   }
 
+  /**
+   * Recovery path: Reset Session (new Session) or Retry engine (start + Session).
+   * After Emergency Stop the process may be dead — fall back to start().
+   */
+  private async recoverSession(options: {
+    restartEngine: boolean;
+  }): Promise<void> {
+    if (options.restartEngine) {
+      try {
+        await this.engine.start({ projectPath: this.projectPath });
+        await this.engine.authenticate();
+      } catch {
+        // Soft fault: process still alive; createSession is enough.
+      }
+    }
+    try {
+      await this.engine.createSession({ cwd: this.projectPath });
+    } catch {
+      // Process was torn down (Emergency Stop) — re-start then create.
+      await this.engine.start({ projectPath: this.projectPath });
+      await this.engine.authenticate();
+      await this.engine.createSession({ cwd: this.projectPath });
+    }
+    const snap = this.engine.getSnapshot();
+    if (snap) this.render(snap);
+  }
+
   private onCliFallback(): void {
     this.errorDetailEl.textContent =
-      "Use the Grok CLI fallback for repair: run `grok` in a terminal for this Project. The GUI did not roll back files.";
+      "Use the Grok CLI fallback for repair: run `grok` in a terminal for this Project. The GUI did not roll back files. Nothing was rolled back on disk.";
     this.errorRecoveryEl.classList.remove("hidden");
   }
 }
