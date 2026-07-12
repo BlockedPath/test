@@ -1,9 +1,9 @@
 /**
- * Client-side ACP terminal/* implementation.
- * Spawns project-local commands, streams output, supports wait/kill/release.
+ * Client-side ACP terminal/* implementation (framework-independent).
+ * Spawns via an injected process factory — no Node imports here so the
+ * frontend bundle can load types/engine code without child_process.
  */
 
-import { spawn, type ChildProcess } from "node:child_process";
 import { redactSecrets } from "./redact";
 
 export type TerminalEnvVar = { name: string; value: string };
@@ -97,53 +97,12 @@ type ManagedTerminal = {
 
 const DEFAULT_OUTPUT_LIMIT = 1_048_576;
 
-export function createNodeTerminalSpawner(): SpawnTerminalProcess {
-  return ({ command, args, cwd, env, shell }) => {
-    const child: ChildProcess = spawn(command, args, {
-      cwd,
-      env,
-      shell,
-      windowsHide: true,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-
-    return {
-      pid: child.pid ?? null,
-      kill(signal?: string) {
-        try {
-          if (!child.killed) {
-            child.kill((signal as NodeJS.Signals | undefined) ?? "SIGTERM");
-          }
-        } catch {
-          /* already dead */
-        }
-      },
-      onStdout(handler) {
-        child.stdout?.on("data", (buf: Buffer) =>
-          handler(buf.toString("utf8")),
-        );
-      },
-      onStderr(handler) {
-        child.stderr?.on("data", (buf: Buffer) =>
-          handler(buf.toString("utf8")),
-        );
-      },
-      onExit(handler) {
-        child.on("exit", (code, signal) => {
-          handler({
-            exitCode: code,
-            signal: signal ?? null,
-          });
-        });
-        child.on("error", (err) => {
-          handler({
-            exitCode: null,
-            signal: null,
-          });
-          void err;
-        });
-      },
-    };
+/** Placeholder spawner for environments without a process host (browser UI). */
+export function unavailableTerminalSpawner(): SpawnTerminalProcess {
+  return () => {
+    throw new Error(
+      "Terminal process spawner not configured (Node/Tauri host required)",
+    );
   };
 }
 
@@ -164,10 +123,11 @@ export class TerminalBridge {
     baseEnv?: NodeJS.ProcessEnv;
     defaultCwd?: string;
   }) {
-    this.spawnProcess = options.spawnProcess ?? createNodeTerminalSpawner();
+    this.spawnProcess =
+      options.spawnProcess ?? unavailableTerminalSpawner();
     this.hooks = options.hooks;
-    this.baseEnv = options.baseEnv ?? process.env;
-    this.defaultCwd = options.defaultCwd ?? process.cwd();
+    this.baseEnv = options.baseEnv ?? {};
+    this.defaultCwd = options.defaultCwd ?? ".";
   }
 
   /** Number of non-released terminals (for cleanup tests). */

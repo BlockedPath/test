@@ -305,9 +305,11 @@ export class GrokAcpEngine implements AgentEnginePort {
     }
 
     this.terminalBridge = new TerminalBridge({
+      // Node/Tauri hosts inject spawnTerminal (createNodeTerminalSpawner).
+      // Browser UI uses FakeAgentEngine and never reaches real terminals.
       spawnProcess: this.deps.spawnTerminal,
       defaultCwd: options.projectPath,
-      baseEnv: this.deps.discovery.env as NodeJS.ProcessEnv,
+      baseEnv: (this.deps.discovery.env ?? {}) as NodeJS.ProcessEnv,
       hooks: {
         onStarted: (info) => {
           this.emit({
