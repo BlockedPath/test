@@ -35,11 +35,13 @@ Windows daily-driver packaging:
 
 ```bash
 npm test
+npm run test:windows-live   # WebView2 + signed pinned CLI via Windows/WSL interop
 npm run test:packaging-smoke   # honest plan-only on WSL; live install needs native Windows
 npm run test:acceptance        # personal v1 walkthrough + pass/fail record (issue #19)
 ```
 
 Acceptance results land in `docs/acceptance/personal-v1-walkthrough-record.md`. Native Windows NSIS/live CLI steps are **unexecuted** on WSL/Linux — never faked as pass.
+`test:windows-live` independently verifies the signed pinned CLI and WebView2 through Windows interop; it does not claim NSIS installation.
 
 ## Layout
 
