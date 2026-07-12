@@ -1,13 +1,17 @@
 /**
- * App entry: conversation-first workspace on AgentEnginePort.
- * Foundation uses FakeAgentEngine; real ACP adapter plugs into the same port.
+ * App entry: first-use Project shell wrapping the conversation-first workspace.
+ * Project context (issue #13) + ConversationApp on AgentEnginePort (issue #12).
  */
 
 import type { AgentEnginePort } from "./engine";
 import { FakeAgentEngine } from "./engine";
-import { ConversationApp } from "./workspace/app";
-
-const PROJECT_PATH = "/tmp/grok-gui-demo-project";
+import {
+  DEMO_PROJECT_PATH,
+  ProjectService,
+  ProjectShell,
+  createDemoProjectHost,
+  createLocalStorageRecentStore,
+} from "./project";
 
 function escapeHtml(value: string): string {
   return value
@@ -23,16 +27,25 @@ window.addEventListener("DOMContentLoaded", () => {
     throw new Error("#app root missing");
   }
 
-  // Wire the fake engine for local UI work. Real ACP engine is the same port.
-  const engine: AgentEnginePort = new FakeAgentEngine({
-    streamDelayMs: 45,
-    richTurn: true,
+  const projects = new ProjectService({
+    host: createDemoProjectHost(),
+    recent: createLocalStorageRecentStore(),
+    demoProjectPath: DEMO_PROJECT_PATH,
   });
-  const app = new ConversationApp(root, engine, {
-    projectPath: PROJECT_PATH,
-    autoDemoPrompt: "Show me a demo conversation through AgentEnginePort.",
+
+  const createEngine = (): AgentEnginePort =>
+    new FakeAgentEngine({
+      streamDelayMs: 45,
+      richTurn: true,
+    });
+
+  const shell = new ProjectShell(root, {
+    projects,
+    createEngine,
+    autoDemoPrompt: `Project ready. Show me a demo conversation through AgentEnginePort.`,
   });
-  void app.mount().catch((err) => {
+
+  void shell.mount().catch((err) => {
     root.innerHTML = `<pre class="boot-error">${escapeHtml(
       err instanceof Error ? err.stack ?? err.message : String(err),
     )}</pre>`;
