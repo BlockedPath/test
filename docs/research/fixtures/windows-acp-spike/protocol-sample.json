@@ -1,0 +1,1217 @@
+{
+  "notificationCounts": {
+    "_x.ai/mcp/servers_updated": 1,
+    "_x.ai/models/update": 2,
+    "_x.ai/announcements/update": 3,
+    "_x.ai/settings/update": 1,
+    "_x.ai/mcp_initialized": 1,
+    "session/update": 212,
+    "_x.ai/session_notification": 40,
+    "_x.ai/sessions/changed": 6,
+    "_x.ai/queue/changed": 8,
+    "_x.ai/session/prompt_complete": 3,
+    "terminal/create": 1,
+    "fs/read_text_file": 3,
+    "fs/write_text_file": 1
+  },
+  "toolCallTimeline": [
+    {
+      "sessionUpdate": "tool_call",
+      "title": "update_goal",
+      "toolCallId": "call-6aee1361-ff36-4d88-8d02-dbd9fd784e22-0"
+    },
+    {
+      "sessionUpdate": "tool_call_update",
+      "title": "Goal: marking complete",
+      "kind": "other",
+      "toolCallId": "call-6aee1361-ff36-4d88-8d02-dbd9fd784e22-0"
+    },
+    {
+      "sessionUpdate": "tool_call_update",
+      "status": "failed",
+      "toolCallId": "call-6aee1361-ff36-4d88-8d02-dbd9fd784e22-0",
+      "content": [
+        {
+          "type": "content",
+          "content": {
+            "type": "text",
+            "text": "Tool `update_goal` failed: Goal is not Active; cannot mark complete"
+          }
+        }
+      ]
+    },
+    {
+      "sessionUpdate": "tool_call",
+      "title": "read_file",
+      "toolCallId": "call-9d745327-8d87-4434-989a-f63b5831d1c5-1"
+    },
+    {
+      "sessionUpdate": "tool_call_update",
+      "title": "Read `C:\\Users\\justi\\AppData\\Local\\Temp\\grok-acp-spike\\workspace\\hello.txt`",
+      "kind": "read",
+      "toolCallId": "call-9d745327-8d87-4434-989a-f63b5831d1c5-1"
+    },
+    {
+      "sessionUpdate": "tool_call",
+      "title": "list_dir",
+      "toolCallId": "call-9d745327-8d87-4434-989a-f63b5831d1c5-2"
+    },
+    {
+      "sessionUpdate": "tool_call_update",
+      "title": "List `C:\\Users\\justi\\AppData\\Local\\Temp\\grok-acp-spike\\workspace`",
+      "kind": "other",
+      "toolCallId": "call-9d745327-8d87-4434-989a-f63b5831d1c5-2"
+    },
+    {
+      "sessionUpdate": "tool_call",
+      "title": "run_terminal_command",
+      "toolCallId": "call-9d745327-8d87-4434-989a-f63b5831d1c5-3"
+    },
+    {
+      "sessionUpdate": "tool_call_update",
+      "title": "Execute `echo SPIKE_TERM_OK`",
+      "kind": "execute",
+      "toolCallId": "call-9d745327-8d87-4434-989a-f63b5831d1c5-3",
+      "content": [
+        {
+          "type": "content",
+          "content": {
+            "type": "text",
+            "text": "Echo SPIKE_TERM_OK for terminal check"
+          }
+        }
+      ]
+    },
+    {
+      "sessionUpdate": "tool_call",
+      "title": "write",
+      "toolCallId": "call-9d745327-8d87-4434-989a-f63b5831d1c5-4"
+    },
+    {
+      "sessionUpdate": "tool_call_update",
+      "title": "Write `C:\\Users\\justi\\AppData\\Local\\Temp\\grok-acp-spike\\workspace\\spike-out.txt`",
+      "kind": "edit",
+      "toolCallId": "call-9d745327-8d87-4434-989a-f63b5831d1c5-4",
+      "content": [
+        {
+          "type": "diff",
+          "path": "C:\\Users\\justi\\AppData\\Local\\Temp\\grok-acp-spike\\workspace\\spike-out.txt",
+          "oldText": "",
+          "newText": "SPIKE_WRITE_OK\n"
+        }
+      ]
+    },
+    {
+      "sessionUpdate": "tool_call_update",
+      "status": "failed",
+      "toolCallId": "call-9d745327-8d87-4434-989a-f63b5831d1c5-3",
+      "content": [
+        {
+          "type": "content",
+          "content": {
+            "type": "text",
+            "text": "Tool `run_terminal_command` failed: Terminal error: IO Error: unsupported client method terminal/create"
+          }
+        }
+      ]
+    },
+    {
+      "sessionUpdate": "tool_call_update",
+      "status": "completed",
+      "toolCallId": "call-9d745327-8d87-4434-989a-f63b5831d1c5-2"
+    },
+    {
+      "sessionUpdate": "tool_call_update",
+      "status": "completed",
+      "toolCallId": "call-9d745327-8d87-4434-989a-f63b5831d1c5-1",
+      "content": [
+        {
+          "type": "content",
+          "content": {
+            "type": "text",
+            "text": "1\u2192spike fixture file\nline two\n"
+          }
+        }
+      ]
+    },
+    {
+      "sessionUpdate": "tool_call_update",
+      "status": "completed",
+      "toolCallId": "call-9d745327-8d87-4434-989a-f63b5831d1c5-4",
+      "content": [
+        {
+          "type": "diff",
+          "path": "C:\\Users\\justi\\AppData\\Local\\Temp\\grok-acp-spike\\workspace\\spike-out.txt",
+          "oldText": "",
+          "newText": "SPIKE_WRITE_OK\n",
+          "_meta": {
+            "details": [
+              {
+                "old_string": "",
+                "old_line": 1,
+                "new_string": "SPIKE_WRITE_OK\n",
+                "new_line": 1,
+                "context_before": "",
+                "context_after": "",
+                "line_prefix": ""
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "interestingMessages": [
+    {
+      "jsonrpc": "2.0",
+      "method": "_x.ai/mcp/servers_updated",
+      "params": {
+        "mcpServers": []
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "method": "_x.ai/models/update",
+      "params": {
+        "currentModelId": "grok-4.5",
+        "availableModels": [
+          {
+            "modelId": "grok-4.5",
+            "name": "Grok 4.5",
+            "description": "SpaceXAI's new frontier model",
+            "_meta": {
+              "totalContextTokens": 500000,
+              "agentType": "grok-build-plan",
+              "supportsReasoningEffort": true,
+              "reasoningEffort": "high",
+              "reasoningEfforts": [
+                {
+                  "id": "high",
+                  "value": "high",
+                  "label": "High Effort",
+                  "description": "Highest implementation quality with extensive reasoning",
+                  "default": true
+                },
+                {
+                  "id": "medium",
+                  "value": "medium",
+                  "label": "Medium Effort",
+                  "description": "Balanced effort with standard implementation and testing",
+                  "default": false
+                },
+                {
+                  "id": "low",
+                  "value": "low",
+                  "label": "Low Effort",
+                  "description": "Quick, fast implementations",
+                  "default": false
+                }
+              ]
+            }
+          },
+          {
+            "modelId": "grok-composer-2.5-fast",
+            "name": "Composer 2.5",
+            "description": "Cursor's latest coding model",
+            "_meta": {
+              "totalContextTokens": 200000,
+              "agentType": "cursor"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "method": "_x.ai/announcements/update",
+      "params": {
+        "gen": 1783868608,
+        "announcements": [
+          {
+            "id": "1",
+            "message": "Grok 4.5 is now available. Try it out in the /model picker.",
+            "severity": null,
+            "title": "Grok 4.5 is here!",
+            "cta": null,
+            "updated_at": null,
+            "expires_at": null,
+            "dismissible": null,
+            "persistent": null
+          }
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "method": "_x.ai/settings/update",
+      "params": {
+        "show_resolved_model": false,
+        "sharing_enabled": false,
+        "session_picker_grouped": null,
+        "tips": [
+          "Use @ to attach files like @src/main.rs.",
+          "Use @! for hidden or ignored files: @!.github/workflows.",
+          "Generate images and videos with /imagine",
+          "Press Ctrl+O to toggle auto-approve mode.",
+          "Use Shift+Tab to cycle between modes, like Plan mode.",
+          "Ask your Agent to search X or the web.",
+          "Press Ctrl+G to background a running terminal command.",
+          "Start Grok in a fresh worktree with `-w`; add `-r <session-id>` to resume an existing session there.",
+          "Try Grok 4.5 from the /model menu",
+          "Use Ctrl+Enter to interject messages. Or just Enter to queue messages."
+        ],
+        "announcements": [
+          {
+            "id": "1",
+            "message": "Grok 4.5 is now available. Try it out in the /model picker.",
+            "severity": null,
+            "title": "Grok 4.5 is here!",
+            "cta": null,
+            "updated_at": null,
+            "expires_at": null,
+            "dismissible": null,
+            "persistent": null
+          }
+        ],
+        "gate_message": null,
+        "gate_url": null,
+        "gate_label": null,
+        "allow_access": true,
+        "subscription_tier_display": "SuperGrok",
+        "auto_permission_mode_enabled": null,
+        "group_tool_verbs": null,
+        "subscription_watch_interval_secs": 60
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "method": "_x.ai/mcp_initialized",
+      "params": {
+        "sessionId": "019f56da-ceb5-7490-83fc-350333ac8fe6",
+        "mcpToolCount": 0,
+        "elapsedMs": 0
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "method": "_x.ai/session_notification",
+      "params": {
+        "sessionId": "019f56da-ceb5-7490-83fc-350333ac8fe6",
+        "update": {
+          "sessionUpdate": "hook_execution",
+          "event_name": "session_start",
+          "runs": [
+            {
+              "name": "global/orca-status:session_start[0].hooks[0]",
+              "status": {
+                "status": "success",
+                "elapsed_ms": 759
+              }
+            }
+          ]
+        },
+        "_meta": {
+          "eventId": "019f56da-ceb5-7490-83fc-350333ac8fe6-2",
+          "agentTimestampMs": 1783868609899
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "method": "_x.ai/sessions/changed",
+      "params": {
+        "upserted": [
+          {
+            "sessionId": "019f56da-ceb5-7490-83fc-350333ac8fe6",
+            "title": null,
+            "cwd": "C:\\Users\\justi\\AppData\\Local\\Temp\\grok-acp-spike\\workspace",
+            "isWorktree": false,
+            "modelId": "grok-4.5",
+            "reasoningEffort": "high",
+            "yolo": true,
+            "activity": "working",
+            "resident": true,
+            "lastChangeUnixMs": 1783868609900,
+            "origin": {
+              "kind": "local"
+            }
+          }
+        ],
+        "removed": []
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "method": "_x.ai/queue/changed",
+      "params": {
+        "sessionId": "019f56da-ceb5-7490-83fc-350333ac8fe6",
+        "entries": [
+          {
+            "id": "80992b5e-3419-4d80-a3ca-060bcba69b0c",
+            "version": 0,
+            "kind": "prompt",
+            "text": "Reply with exactly the five characters: PONG. No other text.",
+            "position": 0
+          }
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "method": "session/update",
+      "params": {
+        "sessionId": "019f56da-ceb5-7490-83fc-350333ac8fe6",
+        "update": {
+          "sessionUpdate": "tool_call",
+          "toolCallId": "call-6aee1361-ff36-4d88-8d02-dbd9fd784e22-0",
+          "title": "update_goal",
+          "rawInput": {
+            "completed": true,
+            "message": "Replied with PONG as requested."
+          },
+          "_meta": {
+            "x.ai/tool": {
+              "version": 1,
+              "name": "update_goal",
+              "kind": "goal_update",
+              "namespace": "grok_build",
+              "label": "Update Goal",
+              "read_only": false
+            }
+          }
+        },
+        "_meta": {
+          "totalTokens": 15263,
+          "eventId": "019f56da-ceb5-7490-83fc-350333ac8fe6-25",
+          "agentTimestampMs": 1783868612225,
+          "promptId": "80992b5e-3419-4d80-a3ca-060bcba69b0c",
+          "streamStartMs": 1783868611358,
+          "turnStartMs": 1783868610613,
+          "updateType": "ToolCall",
+          "updateParams": {
+            "toolCallId": "call-6aee1361-ff36-4d88-8d02-dbd9fd784e22-0",
+            "title": "update_goal",
+            "kind": "Other",
+            "status": "Pending"
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "method": "session/update",
+      "params": {
+        "sessionId": "019f56da-ceb5-7490-83fc-350333ac8fe6",
+        "update": {
+          "sessionUpdate": "tool_call_update",
+          "toolCallId": "call-6aee1361-ff36-4d88-8d02-dbd9fd784e22-0",
+          "kind": "other",
+          "title": "Goal: marking complete",
+          "locations": [],
+          "rawInput": {
+            "variant": "UpdateGoal",
+            "completed": true,
+            "message": "Replied with PONG as requested.",
+            "blocked_reason": null
+          },
+          "_meta": {
+            "x.ai/tool": {
+              "version": 1,
+              "name": "update_goal",
+              "kind": "goal_update",
+              "namespace": "grok_build",
+              "label": "Update Goal",
+              "read_only": false
+            }
+          }
+        },
+        "_meta": {
+          "totalTokens": 15263,
+          "eventId": "019f56da-ceb5-7490-83fc-350333ac8fe6-26",
+          "agentTimestampMs": 1783868612225,
+          "promptId": "80992b5e-3419-4d80-a3ca-060bcba69b0c",
+          "streamStartMs": 1783868611358,
+          "turnStartMs": 1783868610613,
+          "updateType": "ToolCallUpdate",
+          "updateParams": {
+            "toolCallId": "call-6aee1361-ff36-4d88-8d02-dbd9fd784e22-0",
+            "status": null
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "method": "session/update",
+      "params": {
+        "sessionId": "019f56da-ceb5-7490-83fc-350333ac8fe6",
+        "update": {
+          "sessionUpdate": "tool_call_update",
+          "toolCallId": "call-6aee1361-ff36-4d88-8d02-dbd9fd784e22-0",
+          "status": "failed",
+          "content": [
+            {
+              "type": "content",
+              "content": {
+                "type": "text",
+                "text": "Tool `update_goal` failed: Goal is not Active; cannot mark complete"
+              }
+            }
+          ],
+          "rawOutput": {
+            "error": "tool_execution_failed",
+            "message": "Goal is not Active; cannot mark complete"
+          }
+        },
+        "_meta": {
+          "totalTokens": 15263,
+          "eventId": "019f56da-ceb5-7490-83fc-350333ac8fe6-28",
+          "agentTimestampMs": 1783868612870,
+          "promptId": "80992b5e-3419-4d80-a3ca-060bcba69b0c",
+          "streamStartMs": 1783868611358,
+          "turnStartMs": 1783868610613,
+          "updateType": "ToolCallUpdate",
+          "updateParams": {
+            "toolCallId": "call-6aee1361-ff36-4d88-8d02-dbd9fd784e22-0",
+            "status": "Failed"
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "method": "session/update",
+      "params": {
+        "sessionId": "019f56da-ceb5-7490-83fc-350333ac8fe6",
+        "update": {
+          "sessionUpdate": "agent_message_chunk",
+          "content": {
+            "type": "text",
+            "text": "P"
+          }
+        },
+        "_meta": {
+          "totalTokens": 15279,
+          "eventId": "019f56da-ceb5-7490-83fc-350333ac8fe6-48",
+          "agentTimestampMs": 1783868614604,
+          "promptId": "80992b5e-3419-4d80-a3ca-060bcba69b0c",
+          "streamStartMs": 1783868614094,
+          "turnStartMs": 1783868610613,
+          "updateType": "AgentMessageChunk",
+          "chunkId": 19
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "method": "session/update",
+      "params": {
+        "sessionId": "019f56da-ceb5-7490-83fc-350333ac8fe6",
+        "update": {
+          "sessionUpdate": "agent_message_chunk",
+          "content": {
+            "type": "text",
+            "text": "ONG"
+          }
+        },
+        "_meta": {
+          "totalTokens": 15279,
+          "eventId": "019f56da-ceb5-7490-83fc-350333ac8fe6-49",
+          "agentTimestampMs": 1783868614604,
+          "promptId": "80992b5e-3419-4d80-a3ca-060bcba69b0c",
+          "streamStartMs": 1783868614094,
+          "turnStartMs": 1783868610613,
+          "updateType": "AgentMessageChunk",
+          "chunkId": 20
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "method": "_x.ai/session/prompt_complete",
+      "params": {
+        "sessionId": "019f56da-ceb5-7490-83fc-350333ac8fe6",
+        "promptId": "80992b5e-3419-4d80-a3ca-060bcba69b0c",
+        "stopReason": "end_turn",
+        "agentResult": null
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "method": "session/update",
+      "params": {
+        "sessionId": "019f56da-ceb5-7490-83fc-350333ac8fe6",
+        "update": {
+          "sessionUpdate": "agent_message_chunk",
+          "content": {
+            "type": "text",
+            "text": "I'll"
+          }
+        },
+        "_meta": {
+          "totalTokens": 15398,
+          "eventId": "019f56da-ceb5-7490-83fc-350333ac8fe6-68",
+          "agentTimestampMs": 1783868617339,
+          "promptId": "2e7a7909-fb0f-4b85-91fa-aa585e17a676",
+          "streamStartMs": 1783868616724,
+          "turnStartMs": 1783868616194,
+          "updateType": "AgentMessageChunk",
+          "chunkId": 14
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "method": "session/update",
+      "params": {
+        "sessionId": "019f56da-ceb5-7490-83fc-350333ac8fe6",
+        "update": {
+          "sessionUpdate": "tool_call",
+          "toolCallId": "call-9d745327-8d87-4434-989a-f63b5831d1c5-1",
+          "title": "read_file",
+          "rawInput": {
+            "target_file": "C:\\Users\\justi\\AppData\\Local\\Temp\\grok-acp-spike\\workspace\\hello.txt"
+          },
+          "_meta": {
+            "x.ai/tool": {
+              "version": 1,
+              "name": "read_file",
+              "kind": "read",
+              "namespace": "grok_build",
+              "label": "Read",
+              "read_only": true
+            }
+          }
+        },
+        "_meta": {
+          "totalTokens": 15723,
+          "eventId": "019f56da-ceb5-7490-83fc-350333ac8fe6-98",
+          "agentTimestampMs": 1783868618203,
+          "promptId": "2e7a7909-fb0f-4b85-91fa-aa585e17a676",
+          "streamStartMs": 1783868616724,
+          "turnStartMs": 1783868616194,
+          "updateType": "ToolCall",
+          "updateParams": {
+            "toolCallId": "call-9d745327-8d87-4434-989a-f63b5831d1c5-1",
+            "title": "read_file",
+            "kind": "Other",
+            "status": "Pending"
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "method": "session/update",
+      "params": {
+        "sessionId": "019f56da-ceb5-7490-83fc-350333ac8fe6",
+        "update": {
+          "sessionUpdate": "tool_call_update",
+          "toolCallId": "call-9d745327-8d87-4434-989a-f63b5831d1c5-1",
+          "kind": "read",
+          "title": "Read `C:\\Users\\justi\\AppData\\Local\\Temp\\grok-acp-spike\\workspace\\hello.txt`",
+          "locations": [
+            {
+              "path": "C:\\Users\\justi\\AppData\\Local\\Temp\\grok-acp-spike\\workspace\\hello.txt"
+            }
+          ],
+          "rawInput": {
+            "variant": "ReadFile",
+            "target_file": "C:\\Users\\justi\\AppData\\Local\\Temp\\grok-acp-spike\\workspace\\hello.txt"
+          },
+          "_meta": {
+            "x.ai/tool": {
+              "version": 1,
+              "name": "read_file",
+              "kind": "read",
+              "namespace": "grok_build",
+              "label": "Read",
+              "read_only": true,
+              "input": {
+                "path": "C:\\Users\\justi\\AppData\\Local\\Temp\\grok-acp-spike\\workspace\\hello.txt"
+              }
+            }
+          }
+        },
+        "_meta": {
+          "totalTokens": 15723,
+          "eventId": "019f56da-ceb5-7490-83fc-350333ac8fe6-99",
+          "agentTimestampMs": 1783868618203,
+          "promptId": "2e7a7909-fb0f-4b85-91fa-aa585e17a676",
+          "streamStartMs": 1783868616724,
+          "turnStartMs": 1783868616194,
+          "updateType": "ToolCallUpdate",
+          "updateParams": {
+            "toolCallId": "call-9d745327-8d87-4434-989a-f63b5831d1c5-1",
+            "status": null
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "method": "session/update",
+      "params": {
+        "sessionId": "019f56da-ceb5-7490-83fc-350333ac8fe6",
+        "update": {
+          "sessionUpdate": "tool_call",
+          "toolCallId": "call-9d745327-8d87-4434-989a-f63b5831d1c5-2",
+          "title": "list_dir",
+          "rawInput": {
+            "target_directory": "C:\\Users\\justi\\AppData\\Local\\Temp\\grok-acp-spike\\workspace"
+          },
+          "_meta": {
+            "x.ai/tool": {
+              "version": 1,
+              "name": "list_dir",
+              "kind": "list",
+              "namespace": "grok_build",
+              "label": "List Files",
+              "read_only": true
+            }
+          }
+        },
+        "_meta": {
+          "totalTokens": 15723,
+          "eventId": "019f56da-ceb5-7490-83fc-350333ac8fe6-101",
+          "agentTimestampMs": 1783868618847,
+          "promptId": "2e7a7909-fb0f-4b85-91fa-aa585e17a676",
+          "streamStartMs": 1783868616724,
+          "turnStartMs": 1783868616194,
+          "updateType": "ToolCall",
+          "updateParams": {
+            "toolCallId": "call-9d745327-8d87-4434-989a-f63b5831d1c5-2",
+            "title": "list_dir",
+            "kind": "Other",
+            "status": "Pending"
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "method": "session/update",
+      "params": {
+        "sessionId": "019f56da-ceb5-7490-83fc-350333ac8fe6",
+        "update": {
+          "sessionUpdate": "tool_call_update",
+          "toolCallId": "call-9d745327-8d87-4434-989a-f63b5831d1c5-2",
+          "kind": "other",
+          "title": "List `C:\\Users\\justi\\AppData\\Local\\Temp\\grok-acp-spike\\workspace`",
+          "locations": [
+            {
+              "path": "C:\\Users\\justi\\AppData\\Local\\Temp\\grok-acp-spike\\workspace"
+            }
+          ],
+          "rawInput": {
+            "variant": "ListDir",
+            "target_directory": "C:\\Users\\justi\\AppData\\Local\\Temp\\grok-acp-spike\\workspace"
+          },
+          "_meta": {
+            "x.ai/tool": {
+              "version": 1,
+              "name": "list_dir",
+              "kind": "list",
+              "namespace": "grok_build",
+              "label": "List Files",
+              "read_only": true,
+              "input": {
+                "directory": "C:\\Users\\justi\\AppData\\Local\\Temp\\grok-acp-spike\\workspace"
+              }
+            }
+          }
+        },
+        "_meta": {
+          "totalTokens": 15723,
+          "eventId": "019f56da-ceb5-7490-83fc-350333ac8fe6-102",
+          "agentTimestampMs": 1783868618847,
+          "promptId": "2e7a7909-fb0f-4b85-91fa-aa585e17a676",
+          "streamStartMs": 1783868616724,
+          "turnStartMs": 1783868616194,
+          "updateType": "ToolCallUpdate",
+          "updateParams": {
+            "toolCallId": "call-9d745327-8d87-4434-989a-f63b5831d1c5-2",
+            "status": null
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "method": "session/update",
+      "params": {
+        "sessionId": "019f56da-ceb5-7490-83fc-350333ac8fe6",
+        "update": {
+          "sessionUpdate": "tool_call",
+          "toolCallId": "call-9d745327-8d87-4434-989a-f63b5831d1c5-3",
+          "title": "run_terminal_command",
+          "rawInput": {
+            "command": "echo SPIKE_TERM_OK",
+            "description": "Echo SPIKE_TERM_OK for terminal check"
+          },
+          "_meta": {
+            "x.ai/tool": {
+              "version": 1,
+              "name": "run_terminal_command",
+              "kind": "execute",
+              "namespace": "grok_build",
+              "label": "Run Command",
+              "read_only": false
+            }
+          }
+        },
+        "_meta": {
+          "totalTokens": 15723,
+          "eventId": "019f56da-ceb5-7490-83fc-350333ac8fe6-104",
+          "agentTimestampMs": 1783868619520,
+          "promptId": "2e7a7909-fb0f-4b85-91fa-aa585e17a676",
+          "streamStartMs": 1783868616724,
+          "turnStartMs": 1783868616194,
+          "updateType": "ToolCall",
+          "updateParams": {
+            "toolCallId": "call-9d745327-8d87-4434-989a-f63b5831d1c5-3",
+            "title": "run_terminal_command",
+            "kind": "Other",
+            "status": "Pending"
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "method": "session/update",
+      "params": {
+        "sessionId": "019f56da-ceb5-7490-83fc-350333ac8fe6",
+        "update": {
+          "sessionUpdate": "tool_call_update",
+          "toolCallId": "call-9d745327-8d87-4434-989a-f63b5831d1c5-3",
+          "kind": "execute",
+          "title": "Execute `echo SPIKE_TERM_OK`",
+          "content": [
+            {
+              "type": "content",
+              "content": {
+                "type": "text",
+                "text": "Echo SPIKE_TERM_OK for terminal check"
+              }
+            }
+          ],
+          "locations": [],
+          "rawInput": {
+            "variant": "Bash",
+            "command": "echo SPIKE_TERM_OK",
+            "description": "Echo SPIKE_TERM_OK for terminal check",
+            "is_background": false
+          },
+          "_meta": {
+            "x.ai/tool": {
+              "version": 1,
+              "name": "run_terminal_command",
+              "kind": "execute",
+              "namespace": "grok_build",
+              "label": "Run Command",
+              "read_only": false,
+              "input": {
+                "command": "echo SPIKE_TERM_OK",
+                "description": "Echo SPIKE_TERM_OK for terminal check"
+              }
+            }
+          }
+        },
+        "_meta": {
+          "totalTokens": 15723,
+          "eventId": "019f56da-ceb5-7490-83fc-350333ac8fe6-105",
+          "agentTimestampMs": 1783868619520,
+          "promptId": "2e7a7909-fb0f-4b85-91fa-aa585e17a676",
+          "streamStartMs": 1783868616724,
+          "turnStartMs": 1783868616194,
+          "updateType": "ToolCallUpdate",
+          "updateParams": {
+            "toolCallId": "call-9d745327-8d87-4434-989a-f63b5831d1c5-3",
+            "status": null
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "method": "session/update",
+      "params": {
+        "sessionId": "019f56da-ceb5-7490-83fc-350333ac8fe6",
+        "update": {
+          "sessionUpdate": "tool_call",
+          "toolCallId": "call-9d745327-8d87-4434-989a-f63b5831d1c5-4",
+          "title": "write",
+          "rawInput": {
+            "file_path": "C:\\Users\\justi\\AppData\\Local\\Temp\\grok-acp-spike\\workspace\\spike-out.txt",
+            "content": "SPIKE_WRITE_OK\n"
+          },
+          "_meta": {
+            "x.ai/tool": {
+              "version": 1,
+              "name": "write",
+              "kind": "write",
+              "namespace": "opencode",
+              "label": "Write",
+              "read_only": false
+            }
+          }
+        },
+        "_meta": {
+          "totalTokens": 15723,
+          "eventId": "019f56da-ceb5-7490-83fc-350333ac8fe6-107",
+          "agentTimestampMs": 1783868620148,
+          "promptId": "2e7a7909-fb0f-4b85-91fa-aa585e17a676",
+          "streamStartMs": 1783868616724,
+          "turnStartMs": 1783868616194,
+          "updateType": "ToolCall",
+          "updateParams": {
+            "toolCallId": "call-9d745327-8d87-4434-989a-f63b5831d1c5-4",
+            "title": "write",
+            "kind": "Other",
+            "status": "Pending"
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "method": "session/update",
+      "params": {
+        "sessionId": "019f56da-ceb5-7490-83fc-350333ac8fe6",
+        "update": {
+          "sessionUpdate": "tool_call_update",
+          "toolCallId": "call-9d745327-8d87-4434-989a-f63b5831d1c5-4",
+          "kind": "edit",
+          "title": "Write `C:\\Users\\justi\\AppData\\Local\\Temp\\grok-acp-spike\\workspace\\spike-out.txt`",
+          "content": [
+            {
+              "type": "diff",
+              "path": "C:\\Users\\justi\\AppData\\Local\\Temp\\grok-acp-spike\\workspace\\spike-out.txt",
+              "oldText": "",
+              "newText": "SPIKE_WRITE_OK\n"
+            }
+          ],
+          "locations": [
+            {
+              "path": "C:\\Users\\justi\\AppData\\Local\\Temp\\grok-acp-spike\\workspace\\spike-out.txt"
+            }
+          ],
+          "rawInput": {
+            "variant": "Write",
+            "file_path": "C:\\Users\\justi\\AppData\\Local\\Temp\\grok-acp-spike\\workspace\\spike-out.txt",
+            "content": "SPIKE_WRITE_OK\n"
+          },
+          "_meta": {
+            "x.ai/tool": {
+              "version": 1,
+              "name": "write",
+              "kind": "write",
+              "namespace": "opencode",
+              "label": "Write",
+              "read_only": false,
+              "input": {
+                "path": "C:\\Users\\justi\\AppData\\Local\\Temp\\grok-acp-spike\\workspace\\spike-out.txt"
+              }
+            }
+          }
+        },
+        "_meta": {
+          "totalTokens": 15723,
+          "eventId": "019f56da-ceb5-7490-83fc-350333ac8fe6-108",
+          "agentTimestampMs": 1783868620148,
+          "promptId": "2e7a7909-fb0f-4b85-91fa-aa585e17a676",
+          "streamStartMs": 1783868616724,
+          "turnStartMs": 1783868616194,
+          "updateType": "ToolCallUpdate",
+          "updateParams": {
+            "toolCallId": "call-9d745327-8d87-4434-989a-f63b5831d1c5-4",
+            "status": null
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 0,
+      "method": "terminal/create",
+      "params": {
+        "sessionId": "019f56da-ceb5-7490-83fc-350333ac8fe6",
+        "command": "echo SPIKE_TERM_OK",
+        "env": [
+          {
+            "name": "FORCE_COLOR",
+            "value": "1"
+          },
+          {
+            "name": "TERM",
+            "value": "xterm-256color"
+          },
+          {
+            "name": "CARGO_TERM_PROGRESS_WIDTH",
+            "value": "80"
+          },
+          {
+            "name": "CI",
+            "value": "true"
+          },
+          {
+            "name": "NPM_CONFIG_PROGRESS",
+            "value": "true"
+          },
+          {
+            "name": "CARGO_TERM_PROGRESS_WHEN",
+            "value": "always"
+          },
+          {
+            "name": "COLORTERM",
+            "value": "truecolor"
+          },
+          {
+            "name": "MAVEN_OPTS",
+            "value": "-Dstyle.color=always"
+          },
+          {
+            "name": "PIP_PROGRESS_BAR",
+            "value": "on"
+          },
+          {
+            "name": "CLICOLOR",
+            "value": "1"
+          },
+          {
+            "name": "CLICOLOR_FORCE",
+            "value": "1"
+          },
+          {
+            "name": "GRADLE_OPTS",
+            "value": "-Dorg.gradle.console=rich"
+          }
+        ],
+        "cwd": "C:\\Users\\justi\\AppData\\Local\\Temp\\grok-acp-spike\\workspace",
+        "outputByteLimit": 20000
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "fs/read_text_file",
+      "params": {
+        "sessionId": "019f56da-ceb5-7490-83fc-350333ac8fe6",
+        "path": "C:\\Users\\justi\\AppData\\Local\\Temp\\grok-acp-spike\\workspace\\spike-out.txt"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "fs/read_text_file",
+      "params": {
+        "sessionId": "019f56da-ceb5-7490-83fc-350333ac8fe6",
+        "path": "C:\\Users\\justi\\AppData\\Local\\Temp\\grok-acp-spike\\workspace\\hello.txt"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "fs/write_text_file",
+      "params": {
+        "sessionId": "019f56da-ceb5-7490-83fc-350333ac8fe6",
+        "path": "C:\\Users\\justi\\AppData\\Local\\Temp\\grok-acp-spike\\workspace\\spike-out.txt",
+        "content": "SPIKE_WRITE_OK\n"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "method": "session/update",
+      "params": {
+        "sessionId": "019f56da-ceb5-7490-83fc-350333ac8fe6",
+        "update": {
+          "sessionUpdate": "tool_call_update",
+          "toolCallId": "call-9d745327-8d87-4434-989a-f63b5831d1c5-3",
+          "status": "failed",
+          "content": [
+            {
+              "type": "content",
+              "content": {
+                "type": "text",
+                "text": "Tool `run_terminal_command` failed: Terminal error: IO Error: unsupported client method terminal/create"
+              }
+            }
+          ],
+          "rawOutput": {
+            "error": "tool_execution_failed",
+            "message": "Terminal error: IO Error: unsupported client method terminal/create"
+          }
+        },
+        "_meta": {
+          "totalTokens": 15723,
+          "eventId": "019f56da-ceb5-7490-83fc-350333ac8fe6-110",
+          "agentTimestampMs": 1783868620796,
+          "promptId": "2e7a7909-fb0f-4b85-91fa-aa585e17a676",
+          "streamStartMs": 1783868616724,
+          "turnStartMs": 1783868616194,
+          "updateType": "ToolCallUpdate",
+          "updateParams": {
+            "toolCallId": "call-9d745327-8d87-4434-989a-f63b5831d1c5-3",
+            "status": "Failed"
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "method": "session/update",
+      "params": {
+        "sessionId": "019f56da-ceb5-7490-83fc-350333ac8fe6",
+        "update": {
+          "sessionUpdate": "tool_call_update",
+          "toolCallId": "call-9d745327-8d87-4434-989a-f63b5831d1c5-2",
+          "status": "completed",
+          "rawOutput": {
+            "type": "ListDir",
+            "Content": {
+              "content": "- C:\\Users\\justi\\AppData\\Local\\Temp\\grok-acp-spike\\workspace/\n  - hello.txt",
+              "absolute_root_path": "C:\\Users\\justi\\AppData\\Local\\Temp\\grok-acp-spike\\workspace"
+            }
+          }
+        },
+        "_meta": {
+          "totalTokens": 15748,
+          "eventId": "019f56da-ceb5-7490-83fc-350333ac8fe6-112",
+          "agentTimestampMs": 1783868621447,
+          "promptId": "2e7a7909-fb0f-4b85-91fa-aa585e17a676",
+          "streamStartMs": 1783868616724,
+          "turnStartMs": 1783868616194,
+          "updateType": "ToolCallUpdate",
+          "updateParams": {
+            "toolCallId": "call-9d745327-8d87-4434-989a-f63b5831d1c5-2",
+            "status": "Completed"
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "method": "session/update",
+      "params": {
+        "sessionId": "019f56da-ceb5-7490-83fc-350333ac8fe6",
+        "update": {
+          "sessionUpdate": "tool_call_update",
+          "toolCallId": "call-9d745327-8d87-4434-989a-f63b5831d1c5-1",
+          "status": "completed",
+          "content": [
+            {
+              "type": "content",
+              "content": {
+                "type": "text",
+                "text": "1\u2192spike fixture file\nline two\n"
+              }
+            }
+          ],
+          "rawOutput": {
+            "type": "ReadFile",
+            "FileContent": {
+              "content": "1\u2192spike fixture file\nline two\n",
+              "content_concise": "1\u2192spike fixture file\nline two\n",
+              "absolute_path": "C:\\Users\\justi\\AppData\\Local\\Temp\\grok-acp-spike\\workspace\\hello.txt",
+              "offset": null,
+              "raw_output": "spike fixture file\nline two\n",
+              "total_lines": 3
+            }
+          }
+        },
+        "_meta": {
+          "totalTokens": 15766,
+          "eventId": "019f56da-ceb5-7490-83fc-350333ac8fe6-114",
+          "agentTimestampMs": 1783868622090,
+          "promptId": "2e7a7909-fb0f-4b85-91fa-aa585e17a676",
+          "streamStartMs": 1783868616724,
+          "turnStartMs": 1783868616194,
+          "updateType": "ToolCallUpdate",
+          "updateParams": {
+            "toolCallId": "call-9d745327-8d87-4434-989a-f63b5831d1c5-1",
+            "status": "Completed"
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "method": "session/update",
+      "params": {
+        "sessionId": "019f56da-ceb5-7490-83fc-350333ac8fe6",
+        "update": {
+          "sessionUpdate": "tool_call_update",
+          "toolCallId": "call-9d745327-8d87-4434-989a-f63b5831d1c5-4",
+          "status": "completed",
+          "content": [
+            {
+              "type": "diff",
+              "path": "C:\\Users\\justi\\AppData\\Local\\Temp\\grok-acp-spike\\workspace\\spike-out.txt",
+              "oldText": "",
+              "newText": "SPIKE_WRITE_OK\n",
+              "_meta": {
+                "details": [
+                  {
+                    "old_string": "",
+                    "old_line": 1,
+                    "new_string": "SPIKE_WRITE_OK\n",
+                    "new_line": 1,
+                    "context_before": "",
+                    "context_after": "",
+                    "line_prefix": ""
+                  }
+                ]
+              }
+            }
+          ],
+          "rawOutput": {
+            "type": "SearchReplace",
+            "EditsApplied": {
+              "old_string": "",
+              "new_string": "SPIKE_WRITE_OK\n",
+              "tool_output_for_prompt": "The file C:\\Users\\justi\\AppData\\Local\\Temp\\grok-acp-spike\\workspace\\spike-out.txt has been created.",
+              "tool_output_for_prompt_concise": "The file C:\\Users\\justi\\AppData\\Local\\Temp\\grok-acp-spike\\workspace\\spike-out.txt has been created.",
+              "absolute_path": "C:\\Users\\justi\\AppData\\Local\\Temp\\grok-acp-spike\\workspace\\spike-out.txt",
+              "edits": {
+                "details": [
+                  {
+                    "old_string": "",
+                    "old_line": 1,
+                    "new_string": "SPIKE_WRITE_OK\n",
+                    "new_line": 1,
+                    "context_before": "",
+                    "context_after": "",
+                    "line_prefix": ""
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "_meta": {
+          "totalTokens": 15774,
+          "eventId": "019f56da-ceb5-7490-83fc-350333ac8fe6-116",
+          "agentTimestampMs": 1783868622712,
+          "promptId": "2e7a7909-fb0f-4b85-91fa-aa585e17a676",
+          "streamStartMs": 1783868616724,
+          "turnStartMs": 1783868616194,
+          "updateType": "ToolCallUpdate",
+          "updateParams": {
+            "toolCallId": "call-9d745327-8d87-4434-989a-f63b5831d1c5-4",
+            "status": "Completed"
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "fs/read_text_file",
+      "params": {
+        "sessionId": "019f56da-ceb5-7490-83fc-350333ac8fe6",
+        "path": "C:\\Users\\justi\\AppData\\Local\\Temp\\grok-acp-spike\\workspace\\spike-out.txt"
+      }
+    }
+  ]
+}

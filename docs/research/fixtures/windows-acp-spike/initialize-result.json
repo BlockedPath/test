@@ -1,0 +1,101 @@
+{
+  "protocolVersion": 1,
+  "agentCapabilities": {
+    "loadSession": true,
+    "promptCapabilities": {
+      "image": false,
+      "audio": false,
+      "embeddedContext": true
+    },
+    "mcpCapabilities": {
+      "http": true,
+      "sse": true
+    },
+    "_meta": {
+      "x.ai/fs_notify": true,
+      "x.ai/hooks": {
+        "blockingEvents": [
+          "pre_tool_use"
+        ],
+        "decisions": [
+          "deny"
+        ]
+      }
+    }
+  },
+  "authMethods": [
+    {
+      "id": "cached_token",
+      "name": "cached_token",
+      "description": "Cached token from ~/.grok/auth.json"
+    },
+    {
+      "id": "grok.com",
+      "name": "Grok",
+      "description": "Sign in with Grok"
+    }
+  ],
+  "_meta": {
+    "grokShell": true,
+    "defaultAuthMethodId": "cached_token",
+    "x.ai/mcp/sdk": true,
+    "x.ai/pluginDirs": true,
+    "currentWorkingDirectory": "C:\\Users\\justi\\AppData\\Local\\Temp\\grok-acp-spike",
+    "agentVersion": "0.2.93",
+    "agentId": "1e3881e7-164f-5971-86a1-1bce093c395e",
+    "agentInstanceId": "61a16210-7084-4881-9545-b2a00cf72917",
+    "hostname": "DevPC",
+    "modelState": {
+      "currentModelId": "grok-build",
+      "availableModels": [
+        {
+          "modelId": "grok-build",
+          "name": "Grok Build",
+          "description": "Best for advanced coding tasks",
+          "_meta": {
+            "totalContextTokens": 500000,
+            "agentType": "grok-build-plan"
+          }
+        }
+      ]
+    },
+    "mcpServers": [],
+    "mcpApps": false,
+    "metadata": null,
+    "availableCommands": [
+      {
+        "name": "compact",
+        "description": "Compress conversation history to save context window",
+        "input": {
+          "hint": "optional context about what to preserve"
+        }
+      },
+      {
+        "name": "always-approve",
+        "description": "Toggle always-approve mode (skip all permission prompts)",
+        "input": {
+          "hint": "on|off"
+        }
+      },
+      {
+        "name": "context",
+        "description": "Show context window usage and session stats",
+        "input": null
+      },
+      {
+        "name": "session-info",
+        "description": "Show session details (model, turns, context usage)",
+        "input": null
+      },
+      {
+        "name": "goal",
+        "description": "Set, manage, or check an autonomous goal",
+        "input": {
+          "hint": "<objective> [--budget <tokens>] | status | pause | resume | clear"
+        }
+      }
+    ],
+    "cancelRewind": true,
+    "sessionRecap": true
+  }
+}

@@ -1,0 +1,235 @@
+{
+  "startedAt": "2026-07-12T15:03:27.377Z",
+  "host": {
+    "platform": "win32",
+    "arch": "x64",
+    "node": "v22.22.3"
+  },
+  "grokExe": "C:\\Users\\justi\\.grok\\bin\\grok.exe",
+  "workspace": "C:\\Users\\justi\\AppData\\Local\\Temp\\grok-acp-spike\\workspace",
+  "steps": {
+    "launch": {
+      "ok": true,
+      "pid": 34956,
+      "ms": 22
+    },
+    "initialize": {
+      "ok": true,
+      "resultKeys": [
+        "protocolVersion",
+        "agentCapabilities",
+        "authMethods",
+        "_meta"
+      ],
+      "protocolVersion": 1,
+      "authMethods": [
+        "cached_token",
+        "grok.com"
+      ],
+      "agentCapabilities": {
+        "loadSession": true,
+        "promptCapabilities": {
+          "image": false,
+          "audio": false,
+          "embeddedContext": true
+        },
+        "mcpCapabilities": {
+          "http": true,
+          "sse": true
+        },
+        "_meta": {
+          "x.ai/fs_notify": true,
+          "x.ai/hooks": {
+            "blockingEvents": [
+              "pre_tool_use"
+            ],
+            "decisions": [
+              "deny"
+            ]
+          }
+        }
+      }
+    },
+    "authenticate": {
+      "ok": true,
+      "methodId": "cached_token",
+      "result": {
+        "_meta": {
+          "email": "[redacted]",
+          "auth_mode": "Oidc",
+          "team_id": "[redacted-uuid]",
+          "team_name": null,
+          "is_zdr": false,
+          "team_role": null,
+          "coding_data_retention_opt_out": false,
+          "show_resolved_model": false,
+          "gate": null,
+          "subscription_tier": "SuperGrok"
+        }
+      }
+    },
+    "sessionNew": {
+      "ok": true,
+      "sessionId": "019f56da-ceb5-7490-83fc-350333ac8fe6",
+      "resultKeys": [
+        "sessionId",
+        "models",
+        "_meta"
+      ]
+    },
+    "streamPrompt": {
+      "ok": true,
+      "stopReason": "end_turn",
+      "resultKeys": [
+        "stopReason",
+        "_meta"
+      ],
+      "updateTypesDelta": {
+        "available_commands_update": 4,
+        "user_message_chunk": 1,
+        "agent_thought_chunk": 37,
+        "tool_call": 1,
+        "tool_call_update": 2,
+        "agent_message_chunk": 2
+      }
+    },
+    "toolFileTerminalPrompt": {
+      "ok": true,
+      "stopReason": "end_turn",
+      "updateTypesDelta": {
+        "available_commands_update": 2,
+        "user_message_chunk": 1,
+        "agent_thought_chunk": 37,
+        "tool_call": 4,
+        "tool_call_update": 8,
+        "agent_message_chunk": 112
+      },
+      "workspaceWriteObserved": true,
+      "spikeOutContent": "SPIKE_WRITE_OK\n"
+    },
+    "cancellation": {
+      "ok": true,
+      "cancelMethod": "session/cancel",
+      "cancelError": null,
+      "promptOutcome": {
+        "stopReason": "cancelled",
+        "keys": [
+          "stopReason",
+          "_meta"
+        ]
+      }
+    },
+    "cleanup": {
+      "ok": true,
+      "aliveBeforeDispose": true,
+      "aliveAfterDispose": false,
+      "exitCode": null,
+      "stderrBytes": 714
+    }
+  },
+  "events": {
+    "sessionUpdateTypes": {
+      "available_commands_update": 6,
+      "user_message_chunk": 3,
+      "agent_thought_chunk": 74,
+      "tool_call": 5,
+      "tool_call_update": 10,
+      "agent_message_chunk": 114
+    },
+    "notifications": {
+      "_x.ai/mcp/servers_updated": 1,
+      "_x.ai/models/update": 2,
+      "_x.ai/announcements/update": 3,
+      "_x.ai/settings/update": 1,
+      "_x.ai/mcp_initialized": 1,
+      "session/update": 212,
+      "_x.ai/session_notification": 40,
+      "_x.ai/sessions/changed": 6,
+      "_x.ai/queue/changed": 8,
+      "_x.ai/session/prompt_complete": 3,
+      "terminal/create": 1,
+      "fs/read_text_file": 3,
+      "fs/write_text_file": 1
+    },
+    "permissionRequests": 0,
+    "toolCallSamples": [
+      {
+        "sessionUpdate": "tool_call",
+        "title": "update_goal",
+        "toolCallId": "call-6aee1361-ff36-4d88-8d02-dbd9fd784e22-0"
+      },
+      {
+        "sessionUpdate": "tool_call_update",
+        "title": "Goal: marking complete",
+        "kind": "other",
+        "toolCallId": "call-6aee1361-ff36-4d88-8d02-dbd9fd784e22-0"
+      },
+      {
+        "sessionUpdate": "tool_call_update",
+        "status": "failed",
+        "toolCallId": "call-6aee1361-ff36-4d88-8d02-dbd9fd784e22-0"
+      }
+    ],
+    "rawSampleCount": 80
+  },
+  "process": {
+    "pid": 34956,
+    "spawnArgs": [
+      "C:\\Users\\justi\\.grok\\bin\\grok.exe",
+      "--no-auto-update",
+      "agent",
+      "--always-approve",
+      "stdio"
+    ],
+    "exitCode": null,
+    "exitSignal": "SIGTERM",
+    "stderrTail": "\u001b[2m2026-07-12T15:03:32.870388Z\u001b[0m \u001b[31mERROR\u001b[0m tool_error: execution_failure \u001b[3msession_id\u001b[0m\u001b[2m=\u001b[0m019f56da-ceb5-7490-83fc-350333ac8fe6 \u001b[3mtool_name\u001b[0m\u001b[2m=\u001b[0m\"update_goal\" \u001b[3mmodel_id\u001b[0m\u001b[2m=\u001b[0m\"grok-4.5\" \u001b[3merror_kind\u001b[0m\u001b[2m=\u001b[0m\"execution_failure\" \u001b[3merror_message\u001b[0m\u001b[2m=\u001b[0mGoal is not Active; cannot mark complete\n\u001b[2m2026-07-12T15:03:40.796113Z\u001b[0m \u001b[31mERROR\u001b[0m tool_error: execution_failure \u001b[3msession_id\u001b[0m\u001b[2m=\u001b[0m019f56da-ceb5-7490-83fc-350333ac8fe6 \u001b[3mtool_name\u001b[0m\u001b[2m=\u001b[0m\"run_terminal_command\" \u001b[3mmodel_id\u001b[0m\u001b[2m=\u001b[0m\"grok-4.5\" \u001b[3merror_kind\u001b[0m\u001b[2m=\u001b[0m\"execution_failure\" \u001b[3merror_message\u001b[0m\u001b[2m=\u001b[0mTerminal error: IO Error: unsupported client method terminal/create\n"
+  },
+  "errors": [],
+  "passFail": {
+    "launch": true,
+    "initialize": true,
+    "authenticate": true,
+    "sessionNew": true,
+    "streamText": true,
+    "toolEvents": true,
+    "fileActivity": true,
+    "terminalActivity": true,
+    "cancellation": true,
+    "cancellationSurvived": true,
+    "cleanup": true
+  },
+  "finishedAt": "2026-07-12T15:03:50.317Z",
+  "durationMs": 22938,
+  "summary": {
+    "requiredPass": true,
+    "required": [
+      "launch",
+      "initialize",
+      "authenticate",
+      "sessionNew",
+      "streamText",
+      "cleanup"
+    ],
+    "optional": [
+      "toolEvents",
+      "fileActivity",
+      "terminalActivity",
+      "cancellation",
+      "cancellationSurvived"
+    ],
+    "passFail": {
+      "launch": true,
+      "initialize": true,
+      "authenticate": true,
+      "sessionNew": true,
+      "streamText": true,
+      "toolEvents": true,
+      "fileActivity": true,
+      "terminalActivity": true,
+      "cancellation": true,
+      "cancellationSurvived": true,
+      "cleanup": true
+    }
+  }
+}

@@ -1,0 +1,102 @@
+{
+  "sessionId": "019f56da-ceb5-7490-83fc-350333ac8fe6",
+  "models": {
+    "currentModelId": "grok-4.5",
+    "availableModels": [
+      {
+        "modelId": "grok-4.5",
+        "name": "Grok 4.5",
+        "description": "SpaceXAI's new frontier model",
+        "_meta": {
+          "totalContextTokens": 500000,
+          "agentType": "grok-build-plan",
+          "supportsReasoningEffort": true,
+          "reasoningEffort": "high",
+          "reasoningEfforts": [
+            {
+              "id": "high",
+              "value": "high",
+              "label": "High Effort",
+              "description": "Highest implementation quality with extensive reasoning",
+              "default": true
+            },
+            {
+              "id": "medium",
+              "value": "medium",
+              "label": "Medium Effort",
+              "description": "Balanced effort with standard implementation and testing",
+              "default": false
+            },
+            {
+              "id": "low",
+              "value": "low",
+              "label": "Low Effort",
+              "description": "Quick, fast implementations",
+              "default": false
+            }
+          ]
+        }
+      },
+      {
+        "modelId": "grok-composer-2.5-fast",
+        "name": "Composer 2.5",
+        "description": "Cursor's latest coding model",
+        "_meta": {
+          "totalContextTokens": 200000,
+          "agentType": "cursor"
+        }
+      }
+    ]
+  },
+  "_meta": {
+    "currentWorkingDirectory": "C:\\Users\\justi\\AppData\\Local\\Temp\\grok-acp-spike\\workspace",
+    "codebaseIndexed": [],
+    "isGitRepo": false,
+    "gitRoot": null,
+    "showNonGitWarning": false,
+    "feedbackEnabled": true,
+    "x.ai/sessionConfig": {
+      "options": [
+        {
+          "id": "grok-4.5",
+          "category": "model",
+          "label": "Grok 4.5",
+          "selected": true
+        },
+        {
+          "id": "grok-composer-2.5-fast",
+          "category": "model",
+          "label": "Composer 2.5",
+          "selected": false
+        },
+        {
+          "id": "high",
+          "category": "mode",
+          "label": "High Effort",
+          "description": "Highest implementation quality with extensive reasoning",
+          "selected": true
+        },
+        {
+          "id": "medium",
+          "category": "mode",
+          "label": "Medium Effort",
+          "description": "Balanced effort with standard implementation and testing",
+          "selected": false
+        },
+        {
+          "id": "low",
+          "category": "mode",
+          "label": "Low Effort",
+          "description": "Quick, fast implementations",
+          "selected": false
+        }
+      ]
+    },
+    "x.ai/sessionDetail": {
+      "sessionId": "019f56da-ceb5-7490-83fc-350333ac8fe6",
+      "kind": "build",
+      "cwd": "C:\\Users\\justi\\AppData\\Local\\Temp\\grok-acp-spike\\workspace",
+      "currentModelId": "grok-4.5"
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "stopReason": "end_turn",
+  "_meta": {
+    "sessionId": "019f56da-ceb5-7490-83fc-350333ac8fe6",
+    "requestId": "80992b5e-3419-4d80-a3ca-060bcba69b0c",
+    "promptId": "80992b5e-3419-4d80-a3ca-060bcba69b0c",
+    "totalTokens": 15255,
+    "modelId": "grok-4.5",
+    "inputTokens": 15227,
+    "outputTokens": 27,
+    "cachedReadTokens": 11136,
+    "reasoningTokens": 21
+  }
+}
