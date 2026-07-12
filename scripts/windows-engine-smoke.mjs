@@ -8,6 +8,7 @@ import { promisify } from "node:util";
 import { createNodeIdentityHost, nodeSpawnEngine } from "../src/engine/node-host.ts";
 import { discoverEngine } from "../src/engine/discovery.ts";
 import { verifyEngineIdentity, windowsAuthenticodeScript } from "../src/engine/identity.ts";
+import { PINNED_ENGINE_VERSION } from "../src/engine/constants.ts";
 import { planEngineSpawn, assertDirectSpawn } from "../src/engine/spawn-plan.ts";
 import { GrokAcpEngine } from "../src/engine/acp-engine.ts";
 
@@ -44,7 +45,7 @@ try {
       USERPROFILE: "C:\\Users\\justi",
       GROK_EXE: WIN_PATH,
     },
-    fileExists: (p) => existsSync(toWsl(p)),
+    fileExists: (p) => existsSync(process.platform === "win32" ? p : toWsl(p)),
     joinPath: (...parts) => parts.join("\\"),
   };
   const d = await discoverEngine(discoveryHost);
@@ -87,6 +88,11 @@ try {
   const id = await verifyEngineIdentity(WIN_PATH, identity);
   report.steps.identity = id;
   if (!id.ok) throw new Error(id.message);
+  if (id.version.version !== PINNED_ENGINE_VERSION) {
+    throw new Error(
+      `Engine ${id.version.version} does not match pinned ${PINNED_ENGINE_VERSION}`,
+    );
+  }
   console.log("identity: ok", id.version.version, id.signature.publisher?.slice(0, 80));
 } catch (e) {
   fail("identity", e);
@@ -115,7 +121,7 @@ try {
       joinPath: (...p) => p.join("\\"),
     },
     identity,
-    enginePath: WSL_PATH,
+    enginePath: ENGINE_COMMAND,
     skipIdentity: true, // proven above; PE path for spawn differs
     spawn: (plan) =>
       nodeSpawnEngine({
