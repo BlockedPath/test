@@ -7,23 +7,54 @@ import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 
+/** Match a real WebView2-style version (e.g. 150.0.4078.65). */
+const WEBVIEW2_VERSION_RE = /^\d+\.\d+\.\d+/;
+
+/**
+ * Probe machine-wide 64-bit, 32-bit (WOW6432Node), and per-user WebView2
+ * client keys. Returns first key with a usable `pv` version.
+ */
 async function readWebView2() {
+  // Single-line PowerShell keeps WSL→powershell.exe -Command quoting simple.
   const script = [
+    "$ErrorActionPreference='Stop';",
     "$keys=@(",
+    "'HKLM:\\SOFTWARE\\Microsoft\\EdgeUpdate\\Clients\\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}',",
     "'HKLM:\\SOFTWARE\\WOW6432Node\\Microsoft\\EdgeUpdate\\Clients\\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}',",
     "'HKCU:\\SOFTWARE\\Microsoft\\EdgeUpdate\\Clients\\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}'",
     ");",
-    "$found=$keys | Where-Object { Test-Path $_ } | Select-Object -First 1;",
-    "if (-not $found) { @{ present = $false } | ConvertTo-Json -Compress; exit 0 };",
-    "$p=Get-ItemProperty $found; @{ present = $true; version = $p.pv; location = $p.location } | ConvertTo-Json -Compress",
+    "$out=$null;",
+    "foreach($k in $keys){",
+    "  if(-not (Test-Path $k)){ continue };",
+    "  $p=Get-ItemProperty -Path $k -ErrorAction SilentlyContinue;",
+    "  if($null -eq $p){ continue };",
+    "  $ver=[string]$p.pv;",
+    "  if([string]::IsNullOrWhiteSpace($ver)){ continue };",
+    "  $out=@{ present=$true; version=$ver; location=[string]$p.location; key=$k };",
+    "  break",
+    "};",
+    "if($null -eq $out){ $out=@{ present=$false } };",
+    "$out | ConvertTo-Json -Compress",
   ].join(" ");
+
   const { stdout } = await execFileAsync("powershell.exe", [
     "-NoProfile",
     "-NonInteractive",
     "-Command",
     script,
   ]);
-  return JSON.parse(stdout.trim());
+
+  // powershell.exe often emits UTF-8/ANSI with CRLF; strip BOM + whitespace.
+  const text = stdout.replace(/^\uFEFF/, "").trim();
+  if (!text) {
+    return { present: false, error: "empty PowerShell WebView2 probe output" };
+  }
+  return JSON.parse(text);
+}
+
+function webView2Usable(info) {
+  if (!info || info.present !== true) return false;
+  return WEBVIEW2_VERSION_RE.test(String(info.version ?? ""));
 }
 
 async function runEngineSmoke() {
@@ -52,10 +83,17 @@ const report = {
 
 try {
   report.webview2 = await readWebView2();
-  if (!report.webview2.present) throw new Error("WebView2 runtime not found");
+  if (!webView2Usable(report.webview2)) {
+    throw new Error(
+      `WebView2 runtime is missing a usable version (got ${JSON.stringify(report.webview2)})`,
+    );
+  }
 } catch (error) {
   report.ok = false;
-  report.webview2 = { present: false, error: String(error) };
+  report.webview2 = {
+    present: false,
+    error: String(error?.message ?? error),
+  };
 }
 
 try {

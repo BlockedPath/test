@@ -19,10 +19,11 @@ const WSL_PATH =
   process.env.GROK_EXE_WSL ||
   WIN_PATH.replace(/^C:\\/i, "/mnt/c/").replace(/\\/g, "/");
 const ENGINE_COMMAND = process.platform === "win32" ? WIN_PATH : WSL_PATH;
-const PROJECT =
+const projectWindowsPath =
   process.env.SMOKE_PROJECT ||
   "C:\\Users\\justi\\AppData\\Local\\Temp\\grok-gui-ticket-11-smoke";
-const PROJECT_PATH = process.platform === "win32" ? PROJECT : toWsl(PROJECT);
+const projectHostPath =
+  process.platform === "win32" ? projectWindowsPath : toWsl(projectWindowsPath);
 
 function toWsl(p) {
   if (p.startsWith("/")) return p;
@@ -110,7 +111,7 @@ try {
 
 // --- live ACP (may fail without network/auth cache) ---
 try {
-  mkdirSync(PROJECT_PATH, { recursive: true });
+  mkdirSync(projectHostPath, { recursive: true });
   const identity = createNodeIdentityHost({ allowUnsignedNonWindows: true });
   // Prefer skipping double-check complexity: use our verified path
   const engine = new GrokAcpEngine({
@@ -141,7 +142,7 @@ try {
     }
   });
 
-  await engine.start({ projectPath: PROJECT });
+  await engine.start({ projectPath: projectWindowsPath });
   report.steps.initialize = {
     ok: true,
     engineVersion: engine.getSnapshot()?.engineVersion,
@@ -153,7 +154,7 @@ try {
   report.steps.authenticate = { ok: true };
   console.log("authenticate: ok");
 
-  const sessionId = await engine.createSession({ cwd: PROJECT });
+  const sessionId = await engine.createSession({ cwd: projectWindowsPath });
   report.steps.session = {
     ok: true,
     sessionId,
