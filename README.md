@@ -24,12 +24,27 @@ npm run tauri dev    # full desktop shell (requires platform WebView deps)
 
 On Linux, install [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) (`webkit2gtk`, etc.) before `tauri dev`.
 
+## Packaging (issue #18)
+
+Windows daily-driver packaging:
+
+- **NSIS** current-user installer (`installMode: currentUser`) — no Administrator
+- **WebView2** `downloadBootstrapper` when the runtime is missing
+- **Engine** is not embedded; first-run discovers/acquires the pinned official CLI and verifies publisher/signature/version/arch
+- **GUI updates** stay separate from the engine pin (no silent engine drift)
+
+```bash
+npm test
+npm run test:packaging-smoke   # honest plan-only on WSL; live install needs native Windows
+```
+
 ## Layout
 
 | Path | Role |
 | --- | --- |
 | `src/engine/` | `AgentEnginePort`, types, reducer, fake engine, tests |
+| `src/packaging/` | NSIS/WebView2 policy, engine readiness, update pin separation |
 | `src/main.ts` | Minimal conversation workspace UI |
-| `src-tauri/` | Tauri 2 Rust host |
+| `src-tauri/` | Tauri 2 Rust host (`tauri.conf.json` Windows bundle) |
 
 Domain vocabulary: see `CONTEXT.md` and `docs/research/coding-agent-event-contract.md`.
