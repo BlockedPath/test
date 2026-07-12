@@ -1,5 +1,6 @@
 import type {
   ContentBlock,
+  FileChangeBatch,
   GuiEvent,
   Message,
   SessionSnapshot,
@@ -19,7 +20,34 @@ export function createEmptySnapshot(seed: {
     tools: {},
     terminals: {},
     pendingApprovals: [],
+    fileChangeBatches: [],
   };
+}
+
+function upsertFileBatch(
+  batches: FileChangeBatch[],
+  batch: FileChangeBatch,
+): FileChangeBatch[] {
+  const idx = batches.findIndex((b) => b.batchId === batch.batchId);
+  if (idx === -1) return [...batches, batch];
+  const next = [...batches];
+  next[idx] = batch;
+  return next;
+}
+
+function rejectPendingBatches(batches: FileChangeBatch[]): FileChangeBatch[] {
+  return batches.map((batch) => {
+    if (batch.status !== "pending") return batch;
+    return {
+      ...batch,
+      status: "resolved" as const,
+      changes: batch.changes.map((c) => ({
+        ...c,
+        status: c.status === "pending" ? ("rejected" as const) : c.status,
+        selected: false,
+      })),
+    };
+  });
 }
 
 function appendTextChunk(
@@ -223,6 +251,7 @@ export function reduce(
         messages: finishStreamingMessages(snapshot.messages),
         pendingApprovals: [],
         tools: cancelOpenTools(snapshot.tools),
+        fileChangeBatches: rejectPendingBatches(snapshot.fileChangeBatches),
       };
 
     case "tool.started": {
@@ -322,6 +351,45 @@ export function reduce(
     case "yolo.changed":
       return { ...snapshot, yoloEnabled: event.payload.enabled };
 
+    case "file.batch_proposed": {
+      const batch = event.payload.batch;
+      return {
+        ...snapshot,
+        state:
+          batch.status === "pending"
+            ? "awaiting_approval"
+            : snapshot.state,
+        fileChangeBatches: upsertFileBatch(
+          snapshot.fileChangeBatches,
+          batch,
+        ),
+      };
+    }
+
+    case "file.batch_updated": {
+      const batch = event.payload.batch;
+      const batches = upsertFileBatch(snapshot.fileChangeBatches, batch);
+      const stillPending = batches.some((b) => b.status === "pending");
+      const stillRunning =
+        snapshot.turn &&
+        snapshot.state !== "cancelling" &&
+        snapshot.state !== "faulted" &&
+        snapshot.state !== "disposed";
+      return {
+        ...snapshot,
+        fileChangeBatches: batches,
+        state: stillPending
+          ? "awaiting_approval"
+          : stillRunning && snapshot.state === "awaiting_approval"
+            ? "running"
+            : snapshot.state === "awaiting_approval" && !stillPending
+              ? snapshot.turn && !snapshot.turn.stopReason
+                ? "running"
+                : "idle"
+              : snapshot.state,
+      };
+    }
+
     case "session.emergency_stop":
       if (event.payload.phase === "cancel") {
         return { ...snapshot, state: "cancelling" };
@@ -332,6 +400,7 @@ export function reduce(
         messages: finishStreamingMessages(snapshot.messages),
         pendingApprovals: [],
         tools: cancelOpenTools(snapshot.tools),
+        fileChangeBatches: rejectPendingBatches(snapshot.fileChangeBatches),
       };
 
     case "engine.error":
@@ -375,6 +444,7 @@ export function reduce(
         messages: finishStreamingMessages(snapshot.messages),
         pendingApprovals: [],
         tools: cancelOpenTools(snapshot.tools),
+        fileChangeBatches: rejectPendingBatches(snapshot.fileChangeBatches),
       };
 
     case "engine.authenticated":

@@ -3,6 +3,13 @@
  * See docs/research/coding-agent-event-contract.md
  */
 
+import type {
+  FileChangeBatch,
+  FileChangeRecord,
+} from "../edits/types";
+
+export type { FileChangeBatch, FileChangeRecord };
+
 export type SessionLifecycleState =
   | "idle"
   | "running"
@@ -118,6 +125,8 @@ export type SessionSnapshot = {
   tools: Record<string, ToolCallRecord>;
   terminals: Record<string, TerminalRecord>;
   pendingApprovals: ApprovalRecord[];
+  /** Multi-file edit batches awaiting or finished review. */
+  fileChangeBatches: FileChangeBatch[];
   plan?: PlanEntry[];
   usage?: {
     used: number;
@@ -285,6 +294,14 @@ export type GuiEvent =
   | (GuiEventBase & {
       type: "yolo.changed";
       payload: { enabled: boolean };
+    })
+  | (GuiEventBase & {
+      type: "file.batch_proposed";
+      payload: { batch: FileChangeBatch };
+    })
+  | (GuiEventBase & {
+      type: "file.batch_updated";
+      payload: { batch: FileChangeBatch };
     })
   | (GuiEventBase & {
       type: "engine.unknown_update";

@@ -352,4 +352,164 @@ describe("session reducer lifecycle", () => {
     ]);
     expect(assistant?.content).toEqual([{ type: "text", text: "Final answer." }]);
   });
+
+  it("records multi-file edit batches and enters awaiting_approval", () => {
+    let snap = reduce(
+      createEmptySnapshot({ sessionId: "sess-1", projectPath: "/proj" }),
+      evt("session.created", { sessionId: "sess-1", cwd: "/proj" }),
+    );
+    snap = reduce(
+      snap,
+      evt(
+        "turn.started",
+        {
+          turnId: "turn-edit",
+          prompt: [{ type: "text", text: "edit files" }],
+        },
+        { turnId: "turn-edit" },
+      ),
+    );
+
+    const batch = {
+      batchId: "batch-1",
+      title: "Multi-file edit",
+      status: "pending" as const,
+      changes: [
+        {
+          changeId: "c1",
+          path: "a.ts",
+          kind: "create" as const,
+          status: "pending" as const,
+          selected: true,
+          malformed: false,
+          diff: { path: "a.ts", oldText: null, newText: "x\n" },
+        },
+        {
+          changeId: "c2",
+          path: "b.ts",
+          kind: "delete" as const,
+          status: "pending" as const,
+          selected: true,
+          malformed: false,
+          diff: { path: "b.ts", oldText: "y\n", newText: null },
+        },
+      ],
+    };
+
+    snap = reduce(
+      snap,
+      evt("file.batch_proposed", { batch }, { turnId: "turn-edit" }),
+    );
+
+    expect(snap.state).toBe("awaiting_approval");
+    expect(snap.fileChangeBatches).toHaveLength(1);
+    expect(snap.fileChangeBatches[0]!.changes.map((c) => c.path)).toEqual([
+      "a.ts",
+      "b.ts",
+    ]);
+  });
+
+  it("updates batch after partial apply and leaves no silent pending writes", () => {
+    let snap = reduce(
+      createEmptySnapshot({ sessionId: "sess-1", projectPath: "/proj" }),
+      evt("session.created", { sessionId: "sess-1", cwd: "/proj" }),
+    );
+
+    const pending = {
+      batchId: "batch-1",
+      title: "Partial",
+      status: "pending" as const,
+      changes: [
+        {
+          changeId: "c1",
+          path: "a.ts",
+          kind: "create" as const,
+          status: "pending" as const,
+          selected: true,
+          malformed: false,
+        },
+        {
+          changeId: "c2",
+          path: "b.ts",
+          kind: "edit" as const,
+          status: "pending" as const,
+          selected: false,
+          malformed: false,
+        },
+      ],
+    };
+
+    snap = reduce(snap, evt("file.batch_proposed", { batch: pending }));
+
+    const resolved = {
+      ...pending,
+      status: "resolved" as const,
+      changes: [
+        { ...pending.changes[0]!, status: "applied" as const, selected: false },
+        { ...pending.changes[1]!, status: "skipped" as const, selected: false },
+      ],
+    };
+
+    snap = reduce(snap, evt("file.batch_updated", { batch: resolved }));
+
+    expect(snap.fileChangeBatches[0]!.status).toBe("resolved");
+    expect(snap.fileChangeBatches[0]!.changes.map((c) => c.status)).toEqual([
+      "applied",
+      "skipped",
+    ]);
+  });
+
+  it("rejects pending file batches on cancel", () => {
+    let snap = reduce(
+      createEmptySnapshot({ sessionId: "sess-1", projectPath: "/proj" }),
+      evt("session.created", { sessionId: "sess-1", cwd: "/proj" }),
+    );
+    snap = reduce(
+      snap,
+      evt(
+        "turn.started",
+        {
+          turnId: "turn-1",
+          prompt: [{ type: "text", text: "edit" }],
+        },
+        { turnId: "turn-1" },
+      ),
+    );
+    snap = reduce(
+      snap,
+      evt(
+        "file.batch_proposed",
+        {
+          batch: {
+            batchId: "batch-x",
+            title: "Edit",
+            status: "pending",
+            changes: [
+              {
+                changeId: "c1",
+                path: "a.ts",
+                kind: "edit",
+                status: "pending",
+                selected: true,
+                malformed: false,
+              },
+            ],
+          },
+        },
+        { turnId: "turn-1" },
+      ),
+    );
+
+    snap = reduce(
+      snap,
+      evt(
+        "turn.cancelled",
+        { turnId: "turn-1", stopReason: "cancelled" },
+        { turnId: "turn-1" },
+      ),
+    );
+
+    expect(snap.fileChangeBatches[0]!.status).toBe("resolved");
+    expect(snap.fileChangeBatches[0]!.changes[0]!.status).toBe("rejected");
+  });
 });

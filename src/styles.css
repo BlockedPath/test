@@ -408,7 +408,7 @@ body {
 
 .workspace {
   display: grid;
-  grid-template-rows: auto auto auto auto auto 1fr auto;
+  grid-template-rows: auto auto auto auto auto 1fr auto auto;
   height: 100vh;
   max-width: 920px;
   margin: 0 auto;
@@ -709,6 +709,204 @@ body {
 .message-body {
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+/* —— Multi-file edit review (issue #14) —— */
+
+.file-changes {
+  border-top: 1px solid #1f2430;
+  padding: 0.75rem 1.25rem 1rem;
+  overflow: auto;
+  max-height: 42vh;
+  background: #10141c;
+}
+
+.file-changes.hidden {
+  display: none;
+}
+
+.file-change-batch {
+  border: 1px solid #3a4a2a;
+  border-radius: 10px;
+  background: #141c17;
+  padding: 0.75rem 0.9rem 0.85rem;
+  margin-bottom: 0.65rem;
+}
+
+.file-change-batch-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.file-change-batch-status,
+.file-change-status {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid #2a3347;
+  color: #c5cce0;
+}
+
+.file-change-status[data-status="applied"],
+.file-change-batch-status[data-status="resolved"] {
+  border-color: #2f6b3a;
+  color: #8fd49a;
+  background: rgba(61, 214, 140, 0.08);
+}
+
+.file-change-status[data-status="rejected"] {
+  border-color: #6b2f2f;
+  color: #ffb4b4;
+  background: rgba(255, 107, 107, 0.08);
+}
+
+.file-change-status[data-status="skipped"] {
+  border-color: #555;
+  color: #a0a7b8;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.file-change-status[data-status="failed"] {
+  border-color: #a14b4b;
+  color: #ff9a9a;
+  background: rgba(255, 80, 80, 0.12);
+}
+
+.file-change-status[data-status="pending"] {
+  border-color: #3b6ea8;
+  color: #9ec5ff;
+}
+
+.file-change-hint {
+  margin: 0 0 0.55rem;
+  font-size: 0.82rem;
+  color: #8b93a7;
+}
+
+.file-change-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.file-change-row {
+  border: 1px solid #232a3a;
+  border-radius: 8px;
+  background: #12151c;
+  padding: 0.5rem 0.6rem 0.55rem;
+}
+
+.file-change-row-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.55rem;
+  margin-bottom: 0.35rem;
+}
+
+.file-change-kind {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #9ec5ff;
+}
+
+.file-change-path {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.84rem;
+  color: #e8eaed;
+  flex: 1 1 auto;
+  min-width: 0;
+  word-break: break-all;
+}
+
+.file-change-checkbox-spacer {
+  display: inline-block;
+  width: 1rem;
+}
+
+.file-change-inline-diff,
+.file-change-full-diff {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  border-radius: 6px;
+  background: #0c0e13;
+  border: 1px solid #1f2430;
+  padding: 0.35rem 0;
+  overflow: auto;
+  max-height: 12rem;
+  white-space: pre;
+}
+
+.file-change-full-diff {
+  margin-top: 0.4rem;
+  max-height: 20rem;
+  padding: 0.5rem 0.65rem;
+  color: #c5cce0;
+}
+
+.diff-line {
+  padding: 0 0.55rem;
+  white-space: pre;
+}
+
+.diff-line.diff-add {
+  background: rgba(61, 214, 140, 0.12);
+  color: #baf7d5;
+}
+
+.diff-line.diff-del {
+  background: rgba(255, 107, 107, 0.12);
+  color: #ffc9c9;
+}
+
+.diff-line.diff-hunk {
+  color: #9ec5ff;
+  background: rgba(110, 168, 254, 0.08);
+}
+
+.diff-line.diff-ctx {
+  color: #b7c0d1;
+}
+
+.diff-line.diff-meta {
+  color: #8b93a7;
+}
+
+.file-change-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.45rem;
+  margin-top: 0.7rem;
+}
+
+.file-change-resolved-label {
+  margin-top: 0.55rem;
+  font-size: 0.8rem;
+  color: #8b93a7;
+  font-weight: 600;
+}
+
+.file-change-error {
+  color: #ffb4b4;
+  font-size: 0.8rem;
+  margin: 0.2rem 0 0.35rem;
+}
+
+.file-change-expand-btn {
+  margin-left: auto;
 }
 
 .composer {

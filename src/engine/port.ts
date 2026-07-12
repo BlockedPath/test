@@ -9,6 +9,7 @@ import type {
   ApprovalOutcome,
   ContentBlock,
   CreateSessionOptions,
+  FileChangeBatch,
   GuiEvent,
   SessionSnapshot,
   StartOptions,
@@ -38,6 +39,18 @@ export interface AgentEnginePort {
     requestId: string,
     decision: ApprovalOutcome,
   ): Promise<void>;
+
+  /**
+   * Publish a multi-file edit batch for review (normalized file changes).
+   * Optional: engines without edit-review support may omit this.
+   */
+  proposeFileChangeBatch?(batch: FileChangeBatch): Promise<void>;
+
+  /**
+   * Replace a file-change batch after selection or apply/reject.
+   * Optional: engines without edit-review support may omit this.
+   */
+  updateFileChangeBatch?(batch: FileChangeBatch): Promise<void>;
 
   /** Toggle YOLO policy for the current Session (GUI-side flag). */
   setYolo(enabled: boolean): Promise<void>;
