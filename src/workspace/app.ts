@@ -22,6 +22,8 @@ export type ConversationAppOptions = {
    * Pass null/undefined to skip (preferred for tests).
    */
   autoDemoPrompt?: string | null;
+  /** Header subtitle; defaults to the conversation-workspace blurb. */
+  subtitle?: string;
 };
 
 function textFromMessage(message: Message): string {
@@ -66,6 +68,7 @@ export class ConversationApp {
   private root: HTMLElement;
   private projectPath: string;
   private autoDemoPrompt: string | null;
+  private subtitle: string;
 
   private messagesEl!: HTMLElement;
   private statusEl!: HTMLElement;
@@ -95,6 +98,8 @@ export class ConversationApp {
     this.engine = engine;
     this.projectPath = options.projectPath ?? "/tmp/grok-gui-demo-project";
     this.autoDemoPrompt = options.autoDemoPrompt ?? null;
+    this.subtitle =
+      options.subtitle ?? "Conversation workspace · AgentEnginePort seam";
   }
 
   async mount(): Promise<void> {
@@ -103,7 +108,7 @@ export class ConversationApp {
         <header class="workspace-header">
           <div>
             <h1>Grok GUI</h1>
-            <p class="subtitle">Conversation workspace · AgentEnginePort seam</p>
+            <p class="subtitle" data-testid="project-path-label">${escapeHtml(this.subtitle)}</p>
           </div>
           <div class="header-meta">
             <span id="session-status" class="status-pill" data-testid="session-status">starting…</span>

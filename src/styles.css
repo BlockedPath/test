@@ -26,9 +26,385 @@ body {
   min-height: 100vh;
 }
 
-#app {
+#app,
+.app-shell {
   height: 100%;
 }
+
+/* —— First-use Project flow —— */
+
+.first-use {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 2rem 1.25rem 3rem;
+  min-height: 100%;
+}
+
+.first-use-header h1 {
+  margin: 0.35rem 0 0;
+  font-size: 1.35rem;
+  font-weight: 600;
+}
+
+.first-use-card {
+  margin-top: 1.25rem;
+  padding: 1rem 1.1rem 1.15rem;
+  border: 1px solid #232a3a;
+  border-radius: 12px;
+  background: #12151c;
+}
+
+.card-title {
+  margin: 0 0 0.65rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.field-label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #8b93a7;
+  margin-bottom: 0.4rem;
+}
+
+.path-row {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.path-input {
+  flex: 1 1 220px;
+  min-width: 0;
+  border-radius: 8px;
+  border: 1px solid #2a3347;
+  background: #171b24;
+  color: #e8eaed;
+  padding: 0.55rem 0.75rem;
+  font: inherit;
+}
+
+.path-input:focus {
+  outline: 2px solid #3b6ea8;
+  outline-offset: 1px;
+}
+
+.hint {
+  margin: 0.65rem 0 0;
+  font-size: 0.8rem;
+  color: #8b93a7;
+}
+
+.hint code {
+  font-size: 0.78rem;
+  color: #c5cce0;
+}
+
+.muted {
+  color: #8b93a7;
+}
+
+.muted.small,
+.small {
+  font-size: 0.8rem;
+}
+
+.row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.85rem;
+}
+
+.recent-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.recent-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  width: 100%;
+  text-align: left;
+  border: 1px solid #2a3347;
+  border-radius: 8px;
+  background: #171b24;
+  color: inherit;
+  padding: 0.55rem 0.7rem;
+  cursor: pointer;
+  font: inherit;
+}
+
+.recent-item:hover {
+  border-color: #3b6ea8;
+}
+
+.recent-item span {
+  font-size: 0.78rem;
+  color: #8b93a7;
+  word-break: break-all;
+}
+
+.wizard-steps {
+  display: flex;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+  font-size: 0.78rem;
+  color: #6b7388;
+  margin-bottom: 0.35rem;
+}
+
+.wizard-steps .on {
+  color: #9ec5ff;
+  font-weight: 600;
+}
+
+.project-chip {
+  margin: 0.75rem 0 0;
+  font-size: 0.88rem;
+}
+
+.project-chip .muted {
+  display: block;
+  margin-top: 0.15rem;
+  word-break: break-all;
+}
+
+.trust-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.trust-list li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 8px;
+  background: #171b24;
+  border: 1px solid #232a3a;
+}
+
+.trust-list strong {
+  font-size: 0.9rem;
+  color: #c5cce0;
+}
+
+.trust-list span {
+  font-size: 0.85rem;
+  color: #8b93a7;
+}
+
+.error-card {
+  margin-top: 1rem;
+  padding: 0.85rem 1rem;
+  border-radius: 10px;
+  background: #3a1c1c;
+  border: 1px solid #6b2f2f;
+  color: #ffc9c9;
+}
+
+.error-card p {
+  margin: 0.35rem 0 0;
+}
+
+.error-card .btn.secondary {
+  background: #5a2222;
+  border-color: #7a3333;
+  color: #ffd0d0;
+}
+
+/* —— Project workspace layout (Files rail + conversation) —— */
+
+.workspace-layout {
+  display: grid;
+  grid-template-columns: minmax(200px, 260px) 1fr;
+  height: 100vh;
+  background: #12151c;
+  border-inline: 1px solid #1f2430;
+}
+
+.workspace-layout.with-preview {
+  grid-template-columns: minmax(200px, 260px) 1fr minmax(220px, 36%);
+}
+
+.files-rail {
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid #1f2430;
+  background: #0f1115;
+  min-height: 0;
+  min-width: 0;
+}
+
+.rail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.85rem 0.85rem 0.55rem;
+  border-bottom: 1px solid #1f2430;
+}
+
+.rail-title {
+  font-weight: 700;
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #c5cce0;
+}
+
+.rail-sub {
+  font-size: 0.78rem;
+  color: #8b93a7;
+  margin-top: 0.15rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 140px;
+}
+
+.git-strip {
+  padding: 0.45rem 0.85rem;
+  border-bottom: 1px solid #1f2430;
+  font-size: 0.78rem;
+}
+
+.git-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background: #1c2230;
+  border: 1px solid #2a3347;
+  color: #c5cce0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.git-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: #3d9a5f;
+  flex-shrink: 0;
+}
+
+.git-dot.dirty {
+  background: #d4a017;
+}
+
+.git-none {
+  color: #8b93a7;
+}
+
+.file-tree {
+  flex: 1;
+  overflow: auto;
+  padding: 0.4rem 0 0.75rem;
+}
+
+.tree-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.tree-dir-label {
+  display: block;
+  padding: 0.2rem 0.5rem 0.2rem 0;
+  font-size: 0.82rem;
+  color: #aeb6c9;
+  user-select: none;
+}
+
+.tree-file-btn {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  color: #c5cce0;
+  font: inherit;
+  font-size: 0.82rem;
+  padding: 0.22rem 0.5rem 0.22rem 0;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.tree-file-btn:hover {
+  background: #1c2230;
+}
+
+.tree-file.selected .tree-file-btn {
+  background: #1a2740;
+  color: #9ec5ff;
+}
+
+.conversation-host {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.conversation-host .workspace {
+  max-width: none;
+  margin: 0;
+  border-inline: none;
+  height: 100%;
+}
+
+.file-preview {
+  border-left: 1px solid #1f2430;
+  background: #0f1115;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+
+.file-preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.55rem 0.75rem;
+  border-bottom: 1px solid #1f2430;
+  font-size: 0.85rem;
+}
+
+.file-view-body {
+  margin: 0;
+  padding: 0.75rem;
+  overflow: auto;
+  flex: 1;
+  font-family: ui-monospace, "Cascadia Code", "Segoe UI Mono", monospace;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #d0d6e4;
+}
+
+.file-view-error {
+  margin: 0.75rem;
+  color: #ffb4b4;
+}
+
+/* —— Conversation workspace (issue #12) —— */
 
 .workspace {
   display: grid;
@@ -61,12 +437,15 @@ body {
   margin: 0.2rem 0 0;
   color: #8b93a7;
   font-size: 0.85rem;
+  word-break: break-all;
 }
 
 .header-meta {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .engine-health {
@@ -403,6 +782,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.85rem;
+  min-height: 0;
 }
 
 .message {
@@ -493,6 +873,11 @@ body {
   cursor: pointer;
 }
 
+.btn-tiny {
+  padding: 0.2rem 0.45rem;
+  font-size: 0.75rem;
+}
+
 .btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
@@ -535,4 +920,31 @@ body {
   margin: 1rem;
   color: #ffb4b4;
   white-space: pre-wrap;
+}
+
+@media (max-width: 900px) {
+  .workspace-layout,
+  .workspace-layout.with-preview {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr auto;
+    height: auto;
+    min-height: 100vh;
+  }
+
+  .files-rail {
+    max-height: 220px;
+    border-right: none;
+    border-bottom: 1px solid #1f2430;
+  }
+
+  .file-preview {
+    border-left: none;
+    border-top: 1px solid #1f2430;
+    max-height: 240px;
+  }
+
+  .conversation-host .workspace {
+    height: auto;
+    min-height: 60vh;
+  }
 }
