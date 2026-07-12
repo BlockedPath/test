@@ -11,6 +11,7 @@
     "test:watch": "vitest",
     "test:engine-smoke": "tsx scripts/windows-engine-smoke.mjs",
     "test:packaging-smoke": "tsx scripts/windows-clean-profile-smoke.mjs",
+    "test:acceptance": "vitest run src/acceptance && tsx scripts/personal-v1-acceptance.mjs",
     "tauri": "tauri",
     "typecheck": "tsc --noEmit"
   },
